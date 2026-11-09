@@ -56,6 +56,9 @@ GTF_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${GEN
 # EIF2AK3 = PERK, the gene the TEQUILA-seq probes target. EIF2AK2 (PKR) is kept
 # as an off-target comparison: its reads show the background capture level.
 TARGET_GENES=(EIF2AK3 EIF2AK2)
+# genes in TARGET_GENES that are internal controls: processed the same way, but
+# reported under results/internal_control/<GENE>/ instead of results/<GENE>/
+CONTROL_GENES=(EIF2AK2)
 
 # ---------------------------------------------------------------------------
 # Fast path: FIRE k-mer bait -> targeted alignment -> ESPRESSO + AMALGAM
@@ -65,10 +68,18 @@ TARGET_GENES=(EIF2AK3 EIF2AK2)
 FIRE_REPO="${FIRE_REPO:-https://github.com/Max2W/fire.git}"
 FIRE_TAG="v0.5.0"
 FIRE_DIR="${PROJECT_DIR}/tools/fire"
-FIRE_INDEX="${REF_DIR}/fire_index_${FIRE_TAG}_gencode_v${GENCODE_RELEASE}"
-# FIRE's own panel list; it only affects FIRE's panel dictionary, which this analysis
-# does not use (EIF2AK3 / EIF2AK2 are read from the all-protein-coding dictionary)
-FIRE_PANEL="${FIRE_DIR}/config/panel_653.txt"
+# Which FIRE index 02_fire_gene_kmers.sh builds:
+#   target (default): only the TARGET_GENES (seconds). A k-mer is then "unique"
+#     only among these genes; genome-wide specificity comes from step 03, which
+#     aligns every baited read to the whole genome and keeps only reads on the
+#     gene locus, so reads from paralogs (EIF2AK1/2/4) are dropped there.
+#   all: every protein-coding gene (~20 min), with FIRE's panel_653.txt. Also the
+#     automatic fallback if the target-only build fails.
+FIRE_INDEX_MODE="${FIRE_INDEX_MODE:-target}"
+FIRE_INDEX_ALL="${REF_DIR}/fire_index_${FIRE_TAG}_gencode_v${GENCODE_RELEASE}_pcg"
+FIRE_INDEX_TARGET="${REF_DIR}/fire_index_${FIRE_TAG}_gencode_v${GENCODE_RELEASE}_$(IFS=_; echo "${TARGET_GENES[*]}")"
+if [[ "${FIRE_INDEX_MODE}" == "all" ]]; then FIRE_INDEX="${FIRE_INDEX_ALL}"; else FIRE_INDEX="${FIRE_INDEX_TARGET}"; fi
+FIRE_PANEL="${FIRE_DIR}/config/panel_653.txt"   # used by the "all" build
 # pixi (FIRE's installer): the one on your PATH, else a private copy that
 # 00_setup.sh installs here
 TEQ_PIXI_DIR="${PROJECT_DIR}/tools/pixi"

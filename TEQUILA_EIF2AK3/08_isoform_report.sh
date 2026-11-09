@@ -5,6 +5,7 @@
 #   ESPRESSO_full  ${PIPELINE_DIR}/espresso_out/     (06_espresso_full.sh)
 #   AMALGAM_full   ${PROJECT_DIR}/amalgam_full/      (05_amalgam.sh full)
 # -> ${RESULTS_DIR}/<GENE>/<METHOD>/  (tables, figures, <GENE>_<METHOD>_report.md)
+#    control genes (CONTROL_GENES in config.sh) go to ${RESULTS_DIR}/internal_control/<GENE>/
 # -> ${RESULTS_DIR}/<GENE>/method_comparison*  (when two or more methods are done)
 # Missing runs are skipped, so this can be re-run as more of them finish.
 #
@@ -27,7 +28,7 @@ report() {  # report <gene> <method> <matrix> <isoform gtf>
     echo "[${gene}/${method}] not available yet, skipped" >&2
     return 0
   fi
-  local out="${RESULTS_DIR}/${gene}/${method}"
+  local out="$(gene_results_dir "${gene}")/${method}"
   mkdir -p "${out}"
   python "${ANALYSIS_DIR}/scripts/isoform_report.py" \
     --matrix "${matrix}" --isoform-gtf "${iso_gtf}" --ref-gtf "${GTF}" \
@@ -36,7 +37,16 @@ report() {  # report <gene> <method> <matrix> <isoform gtf>
     || echo "[${gene}/${method}] report failed" >&2
 }
 
+gene_results_dir() {  # results/<GENE>, or results/internal_control/<GENE> for a control
+  local g
+  for g in "${CONTROL_GENES[@]}"; do
+    if [[ "$1" == "${g}" ]]; then echo "${RESULTS_DIR}/internal_control/$1"; return; fi
+  done
+  echo "${RESULTS_DIR}/$1"
+}
+
 for gene in "${TARGET_GENES[@]}"; do
+  gdir="$(gene_results_dir "${gene}")"
   wd="espresso_out/work_dir"
   report "${gene}" ESPRESSO_fast "${FAST_DIR}/espresso/${gene}/${wd}/samples_N2_R0_abundance.esp" \
     "${FAST_DIR}/espresso/${gene}/${wd}/samples_N2_R0_updated.gtf"
@@ -49,11 +59,11 @@ for gene in "${TARGET_GENES[@]}"; do
 
   runs=()
   for method in ESPRESSO_fast AMALGAM_fast ESPRESSO_full AMALGAM_full; do
-    [[ -d "${RESULTS_DIR}/${gene}/${method}" ]] && runs+=(--run "${method}=${RESULTS_DIR}/${gene}/${method}")
+    [[ -d "${gdir}/${method}" ]] && runs+=(--run "${method}=${gdir}/${method}")
   done
   if (( ${#runs[@]} >= 4 )); then
     python "${ANALYSIS_DIR}/scripts/compare_methods.py" --gene "${gene}" "${runs[@]}" \
-      --out-prefix "${RESULTS_DIR}/${gene}/method_comparison" || true
+      --out-prefix "${gdir}/method_comparison" || true
   fi
 done
 echo "[report] results in ${RESULTS_DIR}"

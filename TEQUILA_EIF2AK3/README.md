@@ -2,8 +2,9 @@
 
 This folder holds the analysis of the EIF2AK3 (PERK) TEQUILA-seq run
 (`/mnt/isilon/lin_lab_share/Feng/Elena_EAP/TEQUILA_Kidney_EAP`, PromethION flowcells 3B and 3C,
-started 2026-11-04 13:00). The probes target EIF2AK3. EIF2AK2 (PKR) is also analysed, as an
-off-target comparison gene. The code is on branch `EIF2AK3` of this repository.
+started 2026-11-04 13:00). The probes target EIF2AK3, the gene of interest. EIF2AK2 (PKR) is
+processed the same way as an internal control; its results are kept apart, under
+`results/internal_control/EIF2AK2/`. The code is on branch `EIF2AK3` of this repository.
 
 The analysis runs this repository's TEQUILA-seq code and adds two things: a fast path that works
 only on the target gene's reads, and AMALGAM as a second isoform caller.
@@ -45,15 +46,21 @@ fastq_pass/barcodeNN (3B + 3C) --01--> fastq/<sample>/<flowcell>.fastq.gz
    08  isoform reports for every finished run + cross-method comparison -> results/
 ```
 
-**Why the fast path works.** FIRE's index stores every transcript of every gene, and for each 31-mer
-it records whether the 31-mer occurs in only one gene. `scripts/fire_gene_kmers.py` collects the
-EIF2AK3 31-mers that FIRE counts as anchors, using the same rule as FIRE's read decoder. The anchors
-leave out sequence that EIF2AK3 shares with other genes, such as the EIF2AK1/2/4 kinase domain.
-Neither EIF2AK3 nor EIF2AK2 is on `panel_653`, so the protein-coding (`pcg`) dictionary is used.
-`scripts/kmer_bait_reads.py` then scans every read with numpy and keeps a read that has at least
-`BAIT_MIN_HITS` (default 3) anchor positions on either strand. Only those reads are aligned, so
-ESPRESSO and AMALGAM run on thousands of reads instead of millions. `fast/bait_align_stats.tsv` shows
-how many baited reads land on the gene. A value near 1 confirms that the bait is specific.
+**Why the fast path works.** Step 02 builds a FIRE v0.5.0 index of EIF2AK3 and the EIF2AK2 control
+only, which takes seconds. For each 31-mer, the index records which gene it occurs in, and
+`scripts/fire_gene_kmers.py` keeps the EIF2AK3 31-mers that FIRE counts as anchors, using the same
+rule as FIRE's read decoder. `scripts/kmer_bait_reads.py` then scans every read with numpy and keeps a
+read that has at least `BAIT_MIN_HITS` (default 3) anchor positions on either strand. Only those reads
+are aligned, so ESPRESSO and AMALGAM run on thousands of reads instead of millions.
+
+The baiting step only pre-selects reads. Specificity comes from the alignment that follows: every baited
+read is aligned to the whole genome, and only reads that land on the EIF2AK3 locus are kept. A read
+from a paralog (EIF2AK1/2/4) that happens to share a 31-mer aligns to its own locus and is dropped.
+`fast/bait_align_stats.tsv` shows what fraction of baited reads land on the gene.
+
+If FIRE rejects the two-gene index, step 02 builds the full protein-coding index instead (about 20
+minutes); `fast/kmers/fire_index_used.txt` records which index was used. `FIRE_INDEX_MODE="all"` in
+`local_settings.sh` builds the full index directly, which also excludes the paralog-shared 31-mers.
 
 ## Running on the HPC, step by step
 
@@ -131,7 +138,7 @@ is safe: finished parts are skipped.
 ### Step 4. Start the analysis
 
 This submits all jobs to SLURM. Each job waits for the ones it needs. The first fast-path job
-builds the FIRE index (about 2 hours, once) and then extracts the EIF2AK3 and EIF2AK2 k-mers.
+builds a small FIRE index of EIF2AK3 + EIF2AK2 (seconds) and extracts their k-mers.
 
 ```bash
 cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
@@ -218,13 +225,15 @@ reports from whatever has finished.
   pipeline/               full Snakemake run (alignment/, espresso_out/)
   amalgam_full/           genome-wide AMALGAM
   qc/                     fastq_read_counts.tsv, per_input_qc.tsv, top_genes.tsv, figures
-  results/<GENE>/<METHOD>/   reports (METHOD = ESPRESSO_fast, AMALGAM_fast, ESPRESSO_full, AMALGAM_full)
+  results/EIF2AK3/<METHOD>/  reports (METHOD = ESPRESSO_fast, AMALGAM_fast, ESPRESSO_full, AMALGAM_full)
+  results/internal_control/EIF2AK2/<METHOD>/   the same for the control gene
   logs/                   one .out/.err per SLURM job
 ```
 
 ## What the report contains
 
-`results/<GENE>/<METHOD>/<GENE>_<METHOD>_report.md` summarises the run. Alongside it:
+`results/EIF2AK3/<METHOD>/EIF2AK3_<METHOD>_report.md` summarises the run (the control's reports
+have the same layout under `results/internal_control/EIF2AK2/`). Alongside it:
 
 - `_isoform_annotation.tsv`: one row per isoform. It says whether the isoform is annotated or novel,
   and gives its transcript type, intron chain, junctions absent from GENCODE, and closest annotated
@@ -239,7 +248,7 @@ reports from whatever has finished.
 - Figures: `_structure_heatmap` (exon structures beside the proportion of each isoform per sample),
   `_stacked_proportions`, `_isoform_by_donor` (one line per donor across conditions), and
   `_gene_reads`.
-- `results/<GENE>/method_comparison*`: isoforms matched by intron chain across ESPRESSO and AMALGAM
+- `results/EIF2AK3/method_comparison*`: isoforms matched by intron chain across ESPRESSO and AMALGAM
   and across the fast and full paths, with correlations of the per-sample proportions.
 
 Samples with fewer than 20 gene reads are shown, but they are left out of the statistics.
@@ -261,7 +270,7 @@ Samples with fewer than 20 gene reads are shown, but they are left out of the st
   samtools >= 1.19, minimap2 >= 2.26; conda-forge + bioconda only).
 - AMALGAM: its own `conda_requirements.txt` (StringTie 3.0.0, GffCompare 0.12.6, htslib).
 - FIRE v0.5.0: cloned into `tools/fire` and installed with pixi by `00_setup.sh`. Step 02 uses it
-  to build the index (GRCh38 + GENCODE v49, FIRE's own `panel_653.txt`) and read the k-mers.
+  to build the index (GRCh38 + GENCODE v49, EIF2AK3 + EIF2AK2 only) and read the k-mers.
 
 The scripts were tested in a sandbox without the data or the cluster: the read bait was checked
 against a brute-force k-mer count, the report and AMALGAM merge on synthetic data, the

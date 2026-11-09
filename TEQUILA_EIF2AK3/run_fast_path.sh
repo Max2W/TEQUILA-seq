@@ -14,7 +14,8 @@ after="${FASTQ_JOB:-}"   # set by run_all.sh, which submits step 01 once for bot
 if [[ -z "${after}" && "${SKIP_FASTQ:-0}" != "1" ]]; then
   after=$(bash "${_D}/01_prepare_fastq.sh")
 fi
-j_kmers=$(AFTER="${after}" bash "${_D}/02_fire_gene_kmers.sh")
+# the FIRE index / k-mers do not need the fastq files, so they start right away
+j_kmers=$(AFTER="" bash "${_D}/02_fire_gene_kmers.sh")
 j_bait=$(AFTER="${j_kmers}${after:+:${after}}" bash "${_D}/03_bait_and_align.sh")
 j_esp=$(AFTER="${j_bait}" bash "${_D}/04_espresso_targeted.sh")
 j_am=$(AFTER="${j_bait}" bash "${_D}/05_amalgam.sh" fast)
