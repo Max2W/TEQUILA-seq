@@ -14,7 +14,7 @@ set -euo pipefail
 _D="${TEQ_ANALYSIS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 source "${_D}/lib.sh"
 
-if submit_self eif2ak2_report 2 16G 02:00:00 "${_D}/08_isoform_report.sh" "$@"; then
+if submit_self eif2ak3_report 2 16G 02:00:00 "${_D}/08_isoform_report.sh" "$@"; then
   exit 0
 fi
 

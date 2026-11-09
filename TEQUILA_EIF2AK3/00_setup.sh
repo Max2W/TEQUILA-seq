@@ -113,6 +113,7 @@ case "${1:-all}" in
   fire) check_fire ;;
   refs) download_refs ;;
   pipeline) setup_pipeline_dir ;;
-  all) setup_envs; setup_amalgam; download_refs; setup_pipeline_dir; check_fire ;;
+  all) setup_envs; setup_amalgam; download_refs; setup_pipeline_dir; check_fire
+       echo "=== SETUP COMPLETE ===" ;;
   *) echo "unknown target: $1" >&2; exit 1 ;;
 esac

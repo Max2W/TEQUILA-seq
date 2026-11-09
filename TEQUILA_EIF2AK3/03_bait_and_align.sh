@@ -27,7 +27,7 @@ preflight() {
 # inputs from earlier steps may not exist yet when this job waits on them (AFTER=...)
 if [[ -z "${AFTER:-}" ]]; then preflight; fi
 
-if submit_self eif2ak2_bait_align 16 64G 1-00:00:00 "${_D}/03_bait_and_align.sh" "$@"; then
+if submit_self eif2ak3_bait_align 16 64G 1-00:00:00 "${_D}/03_bait_and_align.sh" "$@"; then
   exit 0
 fi
 preflight

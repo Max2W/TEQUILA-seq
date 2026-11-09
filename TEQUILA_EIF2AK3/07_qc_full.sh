@@ -15,7 +15,7 @@ preflight() {
 }
 if [[ -z "${AFTER:-}" ]]; then preflight; fi
 
-if submit_self eif2ak2_qc 8 32G 12:00:00 "${_D}/07_qc_full.sh" "$@"; then
+if submit_self eif2ak3_qc 8 32G 12:00:00 "${_D}/07_qc_full.sh" "$@"; then
   exit 0
 fi
 preflight

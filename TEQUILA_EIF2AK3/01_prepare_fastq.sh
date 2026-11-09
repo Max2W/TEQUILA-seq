@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=eif2ak2_fastq
+#SBATCH --job-name=eif2ak3_fastq
 # Step 1: merge the fastq_pass chunks of each sample barcode, per flowcell,
 # into ${FASTQ_DIR}/<sample>/<flowcell>.fastq.gz, and count reads for every
 # barcode folder on every flowcell (including barcodes not in the sample
@@ -12,7 +12,7 @@ set -euo pipefail
 _D="${TEQ_ANALYSIS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 source "${_D}/lib.sh"
 
-if submit_self eif2ak2_fastq 8 8G 12:00:00 "${_D}/01_prepare_fastq.sh" "$@"; then
+if submit_self eif2ak3_fastq 8 8G 12:00:00 "${_D}/01_prepare_fastq.sh" "$@"; then
   exit 0
 fi
 

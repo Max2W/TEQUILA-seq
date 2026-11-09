@@ -19,7 +19,7 @@ if [[ "${1:-}" == "--check" ]]; then CHECK="--check"; fi
 [[ -f "${FIRE_DIR}/pixi.toml" ]] || { echo "no pixi.toml in FIRE_DIR=${FIRE_DIR}" >&2; exit 1; }
 command -v pixi >/dev/null || { echo "pixi not on PATH" >&2; exit 1; }
 
-if [[ -z "${CHECK}" ]] && submit_self eif2ak2_kmers 2 16G 02:00:00 "${_D}/02_fire_gene_kmers.sh" "$@"; then
+if [[ -z "${CHECK}" ]] && submit_self eif2ak3_kmers 2 16G 02:00:00 "${_D}/02_fire_gene_kmers.sh" "$@"; then
   exit 0
 fi
 

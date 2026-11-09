@@ -24,7 +24,7 @@ esac
 [[ -x "${AMALGAM_ENV}/bin/stringtie" ]] || { echo "AMALGAM env missing: run 00_setup.sh amalgam" >&2; exit 1; }
 [[ -f "${AMALGAM_DIR}/scripts/Quantify_Transcripts.py" ]] || { echo "AMALGAM code missing in ${AMALGAM_DIR}" >&2; exit 1; }
 
-if submit_self "eif2ak2_amalgam_${MODE}" "${JOB_CPUS}" "${JOB_MEM}" "${JOB_TIME}" "${_D}/05_amalgam.sh" "$@"; then
+if submit_self "eif2ak3_amalgam_${MODE}" "${JOB_CPUS}" "${JOB_MEM}" "${JOB_TIME}" "${_D}/05_amalgam.sh" "$@"; then
   exit 0
 fi
 

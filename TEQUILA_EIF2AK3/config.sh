@@ -1,6 +1,5 @@
 #!/bin/bash
 # Central settings for the EIF2AK3 (PERK) TEQUILA-seq analysis (Elena / EAP samples).
-# The folder and branch are named EIF2AK2 for historical reasons; the probes target EIF2AK3.
 # Every step script sources this file. Edit here, not in the step scripts.
 
 # ---------------------------------------------------------------------------
@@ -8,11 +7,11 @@
 # ---------------------------------------------------------------------------
 # Project folder that holds the code clone and all outputs.
 # Kept separate from /home/wangf3/feng/projects/fire-figures on purpose.
-PROJECT_DIR="${PROJECT_DIR:-/home/wangf3/feng/projects/TEQUILA_EIF2AK2}"
+PROJECT_DIR="${PROJECT_DIR:-/home/wangf3/feng/projects/TEQUILA_EIF2AK3}"
 
-# The TEQUILA-seq code (this git repo, branch EIF2AK2) cloned inside PROJECT_DIR
+# The TEQUILA-seq code (this git repo, branch EIF2AK3) cloned inside PROJECT_DIR
 CODE_DIR="${CODE_DIR:-${PROJECT_DIR}/TEQUILA-seq}"
-ANALYSIS_DIR="${_TEQ_DIR:-${CODE_DIR}/TEQUILA_EIF2AK2}"
+ANALYSIS_DIR="${_TEQ_DIR:-${CODE_DIR}/TEQUILA_EIF2AK3}"
 
 # Where outputs go
 PIPELINE_DIR="${PROJECT_DIR}/pipeline"      # Snakemake working dir (alignment, ESPRESSO)
@@ -62,9 +61,13 @@ TARGET_GENES=(EIF2AK3 EIF2AK2)
 # ---------------------------------------------------------------------------
 # Your FIRE v0.5.0 checkout (with `pixi install && pixi run build-ext` done) and
 # an index built by `fire build` with that version. No defaults on purpose:
-# set these two before running 02_fire_gene_kmers.sh.
+# set them with `bash set_fire_paths.sh` before running 02_fire_gene_kmers.sh.
 FIRE_DIR="${FIRE_DIR:-}"
 FIRE_INDEX="${FIRE_INDEX:-}"
+# set_fire_paths.sh saves the two paths here (git ignores this file)
+if [[ -f "${ANALYSIS_DIR}/local_settings.sh" ]]; then
+  source "${ANALYSIS_DIR}/local_settings.sh"
+fi
 # A read is baited when it carries at least this many gene-unique 31-mers
 BAIT_MIN_HITS="${BAIT_MIN_HITS:-3}"
 FAST_DIR="${PROJECT_DIR}/fast"

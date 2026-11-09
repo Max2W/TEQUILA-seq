@@ -2,9 +2,8 @@
 
 This folder holds the analysis of the EIF2AK3 (PERK) TEQUILA-seq run
 (`/mnt/isilon/lin_lab_share/Feng/Elena_EAP/TEQUILA_Kidney_EAP`, PromethION flowcells 3B and 3C,
-started 2026-11-04 13:00). The probes target EIF2AK3. The branch, this folder and the HPC project
-folder keep the name EIF2AK2 from when the analysis was set up. EIF2AK2 (PKR) is still analysed
-as an off-target comparison gene.
+started 2026-11-04 13:00). The probes target EIF2AK3. EIF2AK2 (PKR) is also analysed, as an
+off-target comparison gene. The code is on branch `EIF2AK3` of this repository.
 
 The analysis runs this repository's TEQUILA-seq code and adds two things: a fast path that works
 only on the target gene's reads, and AMALGAM as a second isoform caller.
@@ -56,45 +55,148 @@ Neither EIF2AK3 nor EIF2AK2 is on `panel_653`, so the protein-coding (`pcg`) dic
 ESPRESSO and AMALGAM run on thousands of reads instead of millions. `fast/bait_align_stats.tsv` shows
 how many baited reads land on the gene. A value near 1 confirms that the bait is specific.
 
-## Running on the HPC
+## Running on the HPC, step by step
 
-The project lives in its own folder, separate from `fire-figures`:
+Paste each block into your terminal on the HPC login node, one block at a time, in this order.
+Every block starts with `cd`, so it also works in a new terminal window.
+
+### Step 1. Download the code (once)
 
 ```bash
-mkdir -p /home/wangf3/feng/projects/TEQUILA_EIF2AK2
+mkdir -p /home/wangf3/feng/projects/TEQUILA_EIF2AK3
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3
+git clone -b EIF2AK3 https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
 ```
 
+If git asks for a username and password, press Ctrl+C and use this block instead. It uses your
+SSH key for GitHub:
+
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_EIF2AK2 && git clone -b EIF2AK2 https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3
+git clone -b EIF2AK3 git@github.com:Max2W/TEQUILA-seq.git TEQUILA-seq
 ```
 
-Edit `TEQUILA-seq/TEQUILA_EIF2AK2/config.sh`. Set `FIRE_DIR` (your FIRE v0.5.0 checkout, after
-`pixi install && pixi run build-ext`) and `FIRE_INDEX` (an index made by `fire build` with v0.5.0).
-If your cluster needs an account or partition, also set `SBATCH_EXTRA`, e.g. `--partition=defq`.
-Then set up once, on a login node. This step creates three conda envs, clones AMALGAM, downloads
-GRCh38 and GENCODE v44, and checks FIRE:
+### Step 2. Tell the analysis where FIRE is (once)
+
+This searches your home folder and `/mnt/isilon/lin_lab_share/Feng` for your FIRE v0.5.0 checkout
+and FIRE index, checks them, and saves the two paths:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_EIF2AK2/TEQUILA-seq/TEQUILA_EIF2AK2 && bash 00_setup.sh
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
+bash set_fire_paths.sh
 ```
 
-Submit everything as dependent SLURM jobs:
+It finishes with `Saved to ...`. If it lists several checkouts or indexes instead, run it again
+with the two paths you want, copied from its list:
 
 ```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
+bash set_fire_paths.sh /PATH/TO/FIRE/CHECKOUT /PATH/TO/FIRE/INDEX
+```
+
+### Step 3. Install software and download the genome (once, up to about an hour)
+
+This creates three conda environments, downloads AMALGAM, GRCh38 and GENCODE v44, and checks FIRE.
+It runs in the background, so a dropped connection does not stop it:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
+nohup bash 00_setup.sh > setup.log 2>&1 &
+```
+
+To watch it (press Ctrl+C to stop watching; setup keeps running):
+
+```bash
+tail -f /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3/setup.log
+```
+
+It is finished when this prints `=== SETUP COMPLETE ===`:
+
+```bash
+tail -3 /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3/setup.log
+```
+
+If the last lines show an error instead, send them to Claude.
+
+### Step 4. Start the analysis
+
+This submits all jobs to SLURM. Each job waits for the ones it needs.
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
 bash run_all.sh
 ```
 
-You can also run one path at a time: `bash run_fast_path.sh`, or `SKIP_FASTQ=1 bash run_full_path.sh`.
-Each numbered script can be run alone as well. It submits itself to SLURM; with `LOCAL=1` it runs in
-the current shell instead, e.g. inside an interactive job. `bash 02_fire_gene_kmers.sh --check` only
-opens the FIRE index and resolves the genes. `DRYRUN=1 bash 06_espresso_full.sh` writes the Snakemake
-config and runs `snakemake -n`.
+If `sbatch` complains about a missing account or partition, run this with your partition name
+(here `defq`) and then run Step 4 again:
 
-Folder layout on the HPC:
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
+echo 'SBATCH_EXTRA="--partition=defq"' >> local_settings.sh
+```
+
+### Step 5. Check on the jobs
+
+Your jobs and their state (PD = waiting, R = running; a job that is gone has finished):
+
+```bash
+squeue -u $USER
+```
+
+The five newest log files, and the end of the newest one:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/logs
+ls -t | head -5
+tail -20 "$(ls -t | head -1)"
+```
+
+A job that failed has an error at the end of its `.err` file. Send that file's last lines to Claude.
+
+### Step 6. Look at the results
+
+The fast path finishes in a few hours; the full path takes days. QC first:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3
+column -t fast/bait_align_stats.tsv
+column -t qc/fastq_read_counts.tsv
+```
+
+The EIF2AK3 report from the fast path:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3
+cat results/EIF2AK3/ESPRESSO_fast/EIF2AK3_ESPRESSO_fast_report.md
+cat results/EIF2AK3/AMALGAM_fast/EIF2AK3_AMALGAM_fast_report.md
+```
+
+All figures (PDF/PNG) and tables:
+
+```bash
+ls /home/wangf3/feng/projects/TEQUILA_EIF2AK3/results/EIF2AK3/*/
+```
+
+### Getting code updates later
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq
+git pull
+```
+
+### Running single steps (optional)
+
+Each numbered script can also be run alone with `bash <script>`; it submits itself to SLURM.
+`bash 02_fire_gene_kmers.sh --check` only opens the FIRE index. `DRYRUN=1 bash 06_espresso_full.sh`
+writes the Snakemake config and runs `snakemake -n`. `bash 08_isoform_report.sh` remakes the
+reports from whatever has finished.
+
+### Folder layout on the HPC
 
 ```
-/home/wangf3/feng/projects/TEQUILA_EIF2AK2/
-  TEQUILA-seq/            this repo, branch EIF2AK2 (code; conda_env/ = pipeline env)
+/home/wangf3/feng/projects/TEQUILA_EIF2AK3/
+  TEQUILA-seq/            this repo, branch EIF2AK3 (code; conda_env/ = pipeline env)
+    TEQUILA_EIF2AK3/      these scripts, plus local_settings.sh (your FIRE paths) and setup.log
   envs/                   analysis and AMALGAM conda envs
   tools/amalgam/          AMALGAM clone (commit printed in each AMALGAM log)
   references/             GRCh38 + GENCODE v44 (+ minimap2 .mmi, junction BED)

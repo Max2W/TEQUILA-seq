@@ -37,7 +37,7 @@ if [[ "${TEQ_IN_JOB:-0}" != "1" && -z "${AFTER:-}" ]]; then
   fi
 fi
 
-if submit_self eif2ak2_espresso_full 1 8G 7-00:00:00 "${_D}/06_espresso_full.sh" "$@"; then
+if submit_self eif2ak3_espresso_full 1 8G 7-00:00:00 "${_D}/06_espresso_full.sh" "$@"; then
   exit 0
 fi
 

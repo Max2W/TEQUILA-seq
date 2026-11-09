@@ -19,7 +19,7 @@ preflight() {
 # inputs from earlier steps may not exist yet when this job waits on them (AFTER=...)
 if [[ -z "${AFTER:-}" ]]; then preflight; fi
 
-if submit_self eif2ak2_espresso_fast 8 32G 12:00:00 "${_D}/04_espresso_targeted.sh" "$@"; then
+if submit_self eif2ak3_espresso_fast 8 32G 12:00:00 "${_D}/04_espresso_targeted.sh" "$@"; then
   exit 0
 fi
 preflight
