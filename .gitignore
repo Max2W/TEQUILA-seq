@@ -1,3 +1,4 @@
 conda_env/
 __pycache__/
 TEQUILA_Epilepsy_Swab/local_settings.sh
+TEQUILA_Epilepsy_Swab/start.log

@@ -21,8 +21,8 @@ Data: `/mnt/isilon/lin_lab_share/Feng/TEQUILA_Epilepsy_Buccal_Swab_Pilot`, flowc
 
 ## Genes
 
-`target_genes.txt` lists the genes, one per line; right now it has STXBP1 and SYNGAP1. Add the rest
-of the probe panel there before running. Every step reads that file.
+The probe panel is two genes, STXBP1 and SYNGAP1, listed in `target_genes.txt`. Every step reads
+that file.
 
 ## Shared with the EIF2AK3 project
 
@@ -71,22 +71,7 @@ cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
 git clone -b Epilepsy_Swab https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
 ```
 
-### Step 2. Add the other panel genes (optional, any time before Step 4)
-
-Show the current list:
-
-```bash
-cat /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab/target_genes.txt
-```
-
-Add genes, one per line (replace GENE1 GENE2 with real names):
-
-```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
-printf '%s\n' GENE1 GENE2 >> target_genes.txt
-```
-
-### Step 3. Set up (seconds)
+### Step 2. Set up (seconds)
 
 This checks the shared tools and genes and creates this project's folders. It should end with
 `=== SETUP COMPLETE ===`:
@@ -96,14 +81,23 @@ cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy
 bash 00_setup.sh
 ```
 
-### Step 4. Start the analysis
+### Step 3. Start the analysis
+
+The genome index is shared with the EIF2AK3 project. This block waits in the background until that
+index is ready, then submits all jobs; its messages go to `start.log`:
 
 ```bash
 cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
-bash run_all.sh
+nohup bash wait_and_run_all.sh > start.log 2>&1 &
 ```
 
-### Step 5. Check on the jobs
+To see whether the jobs were submitted:
+
+```bash
+cat /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab/start.log
+```
+
+### Step 4. Check on the jobs
 
 ```bash
 squeue -u $USER -o "%.10i %.28j %.3t %.10M %R" | grep epi_
@@ -113,7 +107,7 @@ squeue -u $USER -o "%.10i %.28j %.3t %.10M %R" | grep epi_
 sacct -u $USER -S today --format=JobID%10,JobName%28,State%14,Elapsed,MaxRSS | grep epi_ | grep -v "\.ba\|\.ex"
 ```
 
-### Step 6. Look at the results
+### Step 5. Look at the results
 
 Detection and fragmentation (fast path; ready a few hours after the start):
 
