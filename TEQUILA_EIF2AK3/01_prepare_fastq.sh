@@ -1,9 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=eif2ak3_fastq
 # Step 1: merge the fastq_pass chunks of each sample barcode, per flowcell,
-# into ${FASTQ_DIR}/<sample>/<flowcell>.fastq.gz, and count reads for every
-# barcode folder on every flowcell (including barcodes not in the sample
-# sheet and "unclassified") -> ${QC_DIR}/fastq_read_counts.tsv
+# into ${FASTQ_DIR}/<sample>/<flowcell>.fastq.gz (gzip chunks are joined, not
+# recompressed) and count their reads -> ${QC_DIR}/fastq_read_counts.tsv.
+# COUNT_OTHER_BARCODES=1 also counts the barcodes not in the sample sheet.
+# Resumable: finished sample files are not merged again.
 #
 # Usage: bash 01_prepare_fastq.sh          (submits itself to SLURM)
 #        LOCAL=1 bash 01_prepare_fastq.sh  (runs in the current shell)
@@ -35,12 +36,14 @@ for entry in "${FLOWCELLS[@]}"; do
     echo "missing ${pass_dir}" >&2
     exit 1
   fi
-  # every barcode folder that exists (for the read-count table)
+  # the sample barcodes; with COUNT_OTHER_BARCODES=1 also the other barcode
+  # folders and "unclassified" (read counts only; slow on a large run)
   for bc_dir in "${pass_dir}"/barcode* "${pass_dir}"/unclassified; do
     [[ -d "${bc_dir}" ]] || continue
     bc="$(basename "${bc_dir}")"
     sample="${BC2SAMPLE[${bc}]:--}"
     if [[ "${sample}" == "-" ]]; then
+      [[ "${COUNT_OTHER_BARCODES:-0}" == "1" ]] || continue
       out="-"
     else
       out="${FASTQ_DIR}/${sample}/${fc}.fastq.gz"
