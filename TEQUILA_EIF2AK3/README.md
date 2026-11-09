@@ -32,7 +32,7 @@ The sheet treats DMSO in donor 114 as the vehicle. Donor 114 has no untreated co
 fastq_pass/barcodeNN (3B + 3C) --01--> fastq/<sample>/<flowcell>.fastq.gz
    |
    |-- FAST PATH (hours) -------------------------------------------------------------
-   |   02  FIRE v0.5.0 index -> EIF2AK3 / EIF2AK2 anchor 31-mers (unique to the gene)
+   |   02  build FIRE v0.5.0 index (once) -> EIF2AK3 / EIF2AK2 anchor 31-mers (unique to the gene)
    |   03  k-mer bait every read -> align only the baited reads (minimap2, TEQUILA settings)
    |   04  ESPRESSO (this repo's Snakefile) on the gene BAMs with the gene's annotation
    |   05  AMALGAM on the gene BAMs                                (05_amalgam.sh fast)
@@ -76,28 +76,37 @@ cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3
 git clone -b EIF2AK3 git@github.com:Max2W/TEQUILA-seq.git TEQUILA-seq
 ```
 
-### Step 2. Tell the analysis where FIRE is (once)
-
-This searches your home folder and `/mnt/isilon/lin_lab_share/Feng` for your FIRE v0.5.0 checkout
-and FIRE index, checks them, and saves the two paths:
+If you already downloaded it earlier, update it instead:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
-bash set_fire_paths.sh
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq
+git pull
 ```
 
-It finishes with `Saved to ...`. If it lists several checkouts or indexes instead, run it again
-with the two paths you want, copied from its list:
+### Step 2. Download FIRE v0.5.0 into the project (once)
+
+FIRE is a private repository, so this is done in the foreground in case GitHub asks who you are.
+The index is built from it later, in Step 4.
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
-bash set_fire_paths.sh /PATH/TO/FIRE/CHECKOUT /PATH/TO/FIRE/INDEX
+mkdir -p /home/wangf3/feng/projects/TEQUILA_EIF2AK3/tools
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/tools
+git clone --branch v0.5.0 --depth 1 https://github.com/Max2W/fire.git fire
 ```
 
-### Step 3. Install software and download the genome (once, up to about an hour)
+If git asks for a username and password, press Ctrl+C and use your SSH key instead:
 
-This creates three conda environments, downloads AMALGAM, GRCh38 and GENCODE v44, and checks FIRE.
-It runs in the background, so a dropped connection does not stop it:
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/tools
+git clone --branch v0.5.0 --depth 1 git@github.com:Max2W/fire.git fire
+```
+
+### Step 3. Install software and download the genome (once, about an hour)
+
+This creates three conda environments, downloads AMALGAM, GRCh38 and GENCODE v49, sets up FIRE's
+pixi environment and compiles it. pixi is FIRE's installer; if you do not have it, a private copy
+goes into the project's `tools/pixi` and your shell settings are not changed. It runs in the
+background, so a dropped connection does not stop it:
 
 ```bash
 cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
@@ -116,11 +125,13 @@ It is finished when this prints `=== SETUP COMPLETE ===`:
 tail -3 /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3/setup.log
 ```
 
-If the last lines show an error instead, send them to Claude.
+If the last lines show an error instead, send them to Claude. Running the same `nohup` line again
+is safe: finished parts are skipped.
 
 ### Step 4. Start the analysis
 
-This submits all jobs to SLURM. Each job waits for the ones it needs.
+This submits all jobs to SLURM. Each job waits for the ones it needs. The first fast-path job
+builds the FIRE index (about 2 hours, once) and then extracts the EIF2AK3 and EIF2AK2 k-mers.
 
 ```bash
 cd /home/wangf3/feng/projects/TEQUILA_EIF2AK3/TEQUILA-seq/TEQUILA_EIF2AK3
@@ -187,7 +198,7 @@ git pull
 ### Running single steps (optional)
 
 Each numbered script can also be run alone with `bash <script>`; it submits itself to SLURM.
-`bash 02_fire_gene_kmers.sh --check` only opens the FIRE index. `DRYRUN=1 bash 06_espresso_full.sh`
+`bash 02_fire_gene_kmers.sh --check` checks FIRE and, once built, the FIRE index. `DRYRUN=1 bash 06_espresso_full.sh`
 writes the Snakemake config and runs `snakemake -n`. `bash 08_isoform_report.sh` remakes the
 reports from whatever has finished.
 
@@ -196,10 +207,12 @@ reports from whatever has finished.
 ```
 /home/wangf3/feng/projects/TEQUILA_EIF2AK3/
   TEQUILA-seq/            this repo, branch EIF2AK3 (code; conda_env/ = pipeline env)
-    TEQUILA_EIF2AK3/      these scripts, plus local_settings.sh (your FIRE paths) and setup.log
+    TEQUILA_EIF2AK3/      these scripts, plus setup.log and local_settings.sh (optional site settings)
   envs/                   analysis and AMALGAM conda envs
+  tools/fire/             FIRE v0.5.0 (pixi env + compiled extensions)
+  tools/pixi/             private pixi, only if you had none
   tools/amalgam/          AMALGAM clone (commit printed in each AMALGAM log)
-  references/             GRCh38 + GENCODE v44 (+ minimap2 .mmi, junction BED)
+  references/             GRCh38 + GENCODE v49, FIRE index, minimap2 .mmi, junction BED
   fastq/                  merged fastq.gz per sample and flowcell
   fast/                   kmers/, bait/, bam/, espresso/<GENE>/, amalgam/<GENE>/
   pipeline/               full Snakemake run (alignment/, espresso_out/)
@@ -245,11 +258,12 @@ Samples with fewer than 20 gene reads are shown, but they are left out of the st
 - TEQUILA-seq pipeline env: `conda_requirements.txt` at the repo root (snakemake 5.31, minimap2 2.17,
   ESPRESSO alpha1.2.2 from `ESPRESSO_alpha1.2.2/`).
 - Analysis env: `envs/analysis_env.txt` (python 3.11, pandas, scipy, matplotlib, pysam, networkx,
-  samtools 1.20, minimap2 2.28).
+  samtools >= 1.19, minimap2 >= 2.26; conda-forge + bioconda only).
 - AMALGAM: its own `conda_requirements.txt` (StringTie 3.0.0, GffCompare 0.12.6, htslib).
-- FIRE v0.5.0: your pixi environment. It is used only to read the index in step 02.
+- FIRE v0.5.0: cloned into `tools/fire` and installed with pixi by `00_setup.sh`. Step 02 uses it
+  to build the index (GRCh38 + GENCODE v49, FIRE's own `panel_653.txt`) and read the k-mers.
 
 The scripts were tested in a sandbox without the data or the cluster: the read bait was checked
 against a brute-force k-mer count, the report and AMALGAM merge on synthetic data, the
 FIRE k-mer extraction against a mock of the index API, and the job chaining with a stand-in
-`sbatch`. Nothing has yet been run on Respublica, against your real FIRE index, or on the reads.
+`sbatch`. Nothing has yet been run on Respublica, with a real FIRE build, or on the reads.

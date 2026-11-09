@@ -2,13 +2,16 @@
 # Step 0 (run once, on a login node because it downloads files):
 #   * creates the conda environments (TEQUILA-seq pipeline, analysis, AMALGAM)
 #   * clones AMALGAM into ${AMALGAM_DIR}
-#   * downloads GRCh38 + GENCODE v44 into ${REF_DIR}
+#   * sets up FIRE v0.5.0 in ${FIRE_DIR}: pixi environment + compiled extensions
+#     (the FIRE index itself is built later, as a SLURM job, by 02_fire_gene_kmers.sh)
+#   * downloads GRCh38 + GENCODE v49 into ${REF_DIR}
 #   * creates the Snakemake working directory ${PIPELINE_DIR}
+# Safe to run again: finished parts are skipped, a half-made conda env is remade.
 #
 # Usage:  bash 00_setup.sh            # everything
 #         bash 00_setup.sh envs       # only conda envs
 #         bash 00_setup.sh amalgam    # only AMALGAM clone + env
-#         bash 00_setup.sh fire       # only check the FIRE install and index
+#         bash 00_setup.sh fire       # only FIRE (clone, pixi install, compile)
 #         bash 00_setup.sh refs       # only references
 #         bash 00_setup.sh pipeline   # only the pipeline working dir
 set -euo pipefail
@@ -26,23 +29,36 @@ eval "$(conda shell.bash hook)"
 SOLVER=conda
 if command -v mamba >/dev/null 2>&1; then SOLVER=mamba; fi
 
-setup_envs() {
-  if [[ ! -x "${PIPELINE_ENV}/bin/snakemake" ]]; then
-    echo "[setup] creating pipeline env at ${PIPELINE_ENV}"
-    ${SOLVER} create -y --prefix "${PIPELINE_ENV}" -c conda-forge -c bioconda \
-      --file "${CODE_DIR}/conda_requirements.txt"
-  else
-    echo "[setup] pipeline env exists: ${PIPELINE_ENV}"
+# make_env <prefix> <requirements file> <check binary> [extra create args...]
+# A finished env gets a marker file; an env without it (a failed earlier try) is
+# removed and created again.
+make_env() {
+  local prefix="$1" reqs="$2" check="$3"
+  shift 3
+  if [[ -f "${prefix}/.teq_env_ok" && -x "${prefix}/bin/${check}" ]]; then
+    echo "[setup] env exists: ${prefix}"
+    return 0
   fi
+  if [[ -e "${prefix}" ]]; then
+    echo "[setup] removing incomplete env ${prefix}"
+    rm -rf "${prefix}"
+  fi
+  echo "[setup] creating env ${prefix} from ${reqs}"
+  mkdir -p "$(dirname "${prefix}")"
+  ${SOLVER} create -y --prefix "${prefix}" "$@" --file "${reqs}"
+  [[ -x "${prefix}/bin/${check}" ]] || { echo "[setup] ${prefix} has no ${check}" >&2; return 1; }
+  touch "${prefix}/.teq_env_ok"
+}
 
-  if [[ ! -x "${ANALYSIS_ENV}/bin/python" ]]; then
-    echo "[setup] creating analysis env at ${ANALYSIS_ENV}"
-    mkdir -p "$(dirname "${ANALYSIS_ENV}")"
-    ${SOLVER} create -y --prefix "${ANALYSIS_ENV}" -c conda-forge -c bioconda \
-      --file "${ANALYSIS_DIR}/envs/analysis_env.txt"
-  else
-    echo "[setup] analysis env exists: ${ANALYSIS_ENV}"
+setup_envs() {
+  # the TEQUILA-seq pipeline env (python 3.8, snakemake 5.31, ESPRESSO deps)
+  if [[ -x "${PIPELINE_ENV}/bin/snakemake" && ! -f "${PIPELINE_ENV}/.teq_env_ok" ]]; then
+    touch "${PIPELINE_ENV}/.teq_env_ok"   # made by an earlier version of this script
   fi
+  make_env "${PIPELINE_ENV}" "${CODE_DIR}/conda_requirements.txt" snakemake -c conda-forge -c bioconda
+  # conda-forge + bioconda only, so packages from 'defaults' are not mixed in
+  make_env "${ANALYSIS_ENV}" "${ANALYSIS_DIR}/envs/analysis_env.txt" minimap2 \
+    --override-channels -c conda-forge -c bioconda
 }
 
 setup_amalgam() {
@@ -53,24 +69,44 @@ setup_amalgam() {
   git -C "${AMALGAM_DIR}" fetch --quiet origin || true
   git -C "${AMALGAM_DIR}" checkout --quiet "${AMALGAM_COMMIT}"
   echo "[setup] AMALGAM at $(git -C "${AMALGAM_DIR}" rev-parse HEAD)"
-  if [[ ! -x "${AMALGAM_ENV}/bin/stringtie" ]]; then
-    echo "[setup] creating AMALGAM env at ${AMALGAM_ENV}"
-    mkdir -p "$(dirname "${AMALGAM_ENV}")"
-    ${SOLVER} create -y --prefix "${AMALGAM_ENV}" -c conda-forge -c bioconda \
-      --file "${AMALGAM_DIR}/conda_requirements.txt"
-  else
-    echo "[setup] AMALGAM env exists: ${AMALGAM_ENV}"
-  fi
+  make_env "${AMALGAM_ENV}" "${AMALGAM_DIR}/conda_requirements.txt" stringtie \
+    --override-channels -c conda-forge -c bioconda
 }
 
-check_fire() {
-  if [[ -z "${FIRE_DIR}" || -z "${FIRE_INDEX}" ]]; then
-    echo "[setup] FIRE_DIR / FIRE_INDEX not set in config.sh: skipping the FIRE check" \
-         "(needed before 02_fire_gene_kmers.sh)"
-    return 0
+setup_fire() {
+  # pixi is FIRE's only supported installer. Use the one on PATH, else install
+  # a private copy under tools/pixi (your shell settings are not changed).
+  if ! command -v pixi >/dev/null 2>&1; then
+    if [[ ! -x "${TEQ_PIXI_DIR}/bin/pixi" ]]; then
+      echo "[setup] installing pixi into ${TEQ_PIXI_DIR}"
+      mkdir -p "${TEQ_PIXI_DIR}"
+      curl -fsSL https://pixi.sh/install.sh | PIXI_HOME="${TEQ_PIXI_DIR}" PIXI_NO_PATH_UPDATE=1 bash
+    fi
+    export PATH="${TEQ_PIXI_DIR}/bin:${PATH}"
   fi
-  [[ -f "${FIRE_INDEX}/meta.json" ]] || { echo "no FIRE index at ${FIRE_INDEX}" >&2; return 1; }
+  echo "[setup] pixi: $(command -v pixi) ($(pixi --version))"
+
+  if [[ ! -d "${FIRE_DIR}/.git" ]]; then
+    mkdir -p "$(dirname "${FIRE_DIR}")"
+    # no password prompt here (this may run in the background); see the README if it fails
+    if ! GIT_TERMINAL_PROMPT=0 git clone --branch "${FIRE_TAG}" --depth 1 "${FIRE_REPO}" "${FIRE_DIR}"; then
+      echo "[setup] could not download FIRE without a password. Run this once, then run 00_setup.sh again:" >&2
+      echo "  git clone --branch ${FIRE_TAG} --depth 1 git@github.com:Max2W/fire.git ${FIRE_DIR}" >&2
+      return 1
+    fi
+  fi
+  local tag
+  tag="$(git -C "${FIRE_DIR}" describe --tags --exact-match 2>/dev/null || echo none)"
+  [[ "${tag}" == "${FIRE_TAG}" ]] || { echo "[setup] ${FIRE_DIR} is at '${tag}', not ${FIRE_TAG}" >&2; return 1; }
+
+  if [[ ! -f "${FIRE_DIR}/.teq_build_ok" ]]; then
+    echo "[setup] FIRE: pixi install + compiling extensions (several minutes)"
+    (cd "${FIRE_DIR}" && pixi install && pixi run build-ext)
+    touch "${FIRE_DIR}/.teq_build_ok"
+  fi
   (cd "${FIRE_DIR}" && pixi run python -m xinglab_fire version)
+  [[ -f "${FIRE_PANEL}" ]] || { echo "[setup] missing ${FIRE_PANEL}" >&2; return 1; }
+  echo "[setup] FIRE ${FIRE_TAG} ready in ${FIRE_DIR}; its index is built by 02_fire_gene_kmers.sh"
 }
 
 download_refs() {
@@ -78,12 +114,12 @@ download_refs() {
   if [[ ! -s "${REF_DIR}/${FASTA_NAME}" ]]; then
     echo "[setup] downloading ${FASTA_URL}"
     curl -L --fail "${FASTA_URL}" -o "${REF_DIR}/${FASTA_NAME}.gz"
-    gunzip "${REF_DIR}/${FASTA_NAME}.gz"
+    gunzip -f "${REF_DIR}/${FASTA_NAME}.gz"
   fi
   if [[ ! -s "${REF_DIR}/${GTF_NAME}" ]]; then
     echo "[setup] downloading ${GTF_URL}"
     curl -L --fail "${GTF_URL}" -o "${REF_DIR}/${GTF_NAME}.gz"
-    gunzip "${REF_DIR}/${GTF_NAME}.gz"
+    gunzip -f "${REF_DIR}/${GTF_NAME}.gz"
   fi
   if [[ ! -s "${REF_DIR}/${FASTA_NAME}.fai" ]]; then
     conda activate "${ANALYSIS_ENV}"
@@ -110,10 +146,10 @@ setup_pipeline_dir() {
 case "${1:-all}" in
   envs) setup_envs ;;
   amalgam) setup_amalgam ;;
-  fire) check_fire ;;
+  fire) setup_fire ;;
   refs) download_refs ;;
   pipeline) setup_pipeline_dir ;;
-  all) setup_envs; setup_amalgam; download_refs; setup_pipeline_dir; check_fire
+  all) setup_envs; setup_amalgam; setup_fire; download_refs; setup_pipeline_dir
        echo "=== SETUP COMPLETE ===" ;;
   *) echo "unknown target: $1" >&2; exit 1 ;;
 esac

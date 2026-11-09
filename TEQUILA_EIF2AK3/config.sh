@@ -41,13 +41,14 @@ FLOWCELLS=(
 SAMPLE_SHEET="${ANALYSIS_DIR}/samples.tsv"
 
 # ---------------------------------------------------------------------------
-# Reference: GRCh38 primary assembly + GENCODE v44 (same as qc_analysis/README)
+# Reference: GRCh38 primary assembly + GENCODE v49 (the release FIRE is tested with).
+# One annotation for everything: FIRE index, minimap2 junctions, ESPRESSO, AMALGAM.
 # ---------------------------------------------------------------------------
-GENCODE_RELEASE=44
+GENCODE_RELEASE=49
 FASTA_NAME="GRCh38.primary_assembly.genome.fa"
-GTF_NAME="gencode.v${GENCODE_RELEASE}.primary_assembly.annotation.gtf"
+GTF_NAME="gencode.v${GENCODE_RELEASE}.annotation.gtf"
 FASTA_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${GENCODE_RELEASE}/GRCh38.primary_assembly.genome.fa.gz"
-GTF_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${GENCODE_RELEASE}/gencode.v${GENCODE_RELEASE}.primary_assembly.annotation.gtf.gz"
+GTF_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${GENCODE_RELEASE}/gencode.v${GENCODE_RELEASE}.annotation.gtf.gz"
 
 # ---------------------------------------------------------------------------
 # Target genes
@@ -59,12 +60,22 @@ TARGET_GENES=(EIF2AK3 EIF2AK2)
 # ---------------------------------------------------------------------------
 # Fast path: FIRE k-mer bait -> targeted alignment -> ESPRESSO + AMALGAM
 # ---------------------------------------------------------------------------
-# Your FIRE v0.5.0 checkout (with `pixi install && pixi run build-ext` done) and
-# an index built by `fire build` with that version. No defaults on purpose:
-# set them with `bash set_fire_paths.sh` before running 02_fire_gene_kmers.sh.
-FIRE_DIR="${FIRE_DIR:-}"
-FIRE_INDEX="${FIRE_INDEX:-}"
-# set_fire_paths.sh saves the two paths here (git ignores this file)
+# FIRE v0.5.0 is downloaded and compiled by 00_setup.sh into the project folder,
+# and its index is built from the GENCODE v49 reference by 02_fire_gene_kmers.sh.
+FIRE_REPO="${FIRE_REPO:-https://github.com/Max2W/fire.git}"
+FIRE_TAG="v0.5.0"
+FIRE_DIR="${PROJECT_DIR}/tools/fire"
+FIRE_INDEX="${REF_DIR}/fire_index_${FIRE_TAG}_gencode_v${GENCODE_RELEASE}"
+# FIRE's own panel list; it only affects FIRE's panel dictionary, which this analysis
+# does not use (EIF2AK3 / EIF2AK2 are read from the all-protein-coding dictionary)
+FIRE_PANEL="${FIRE_DIR}/config/panel_653.txt"
+# pixi (FIRE's installer): the one on your PATH, else a private copy that
+# 00_setup.sh installs here
+TEQ_PIXI_DIR="${PROJECT_DIR}/tools/pixi"
+if ! command -v pixi >/dev/null 2>&1 && [[ -x "${TEQ_PIXI_DIR}/bin/pixi" ]]; then
+  export PATH="${TEQ_PIXI_DIR}/bin:${PATH}"
+fi
+# Optional site settings, e.g. SBATCH_EXTRA="--partition=defq" (git ignores this file)
 if [[ -f "${ANALYSIS_DIR}/local_settings.sh" ]]; then
   source "${ANALYSIS_DIR}/local_settings.sh"
 fi
