@@ -26,8 +26,9 @@ that file.
 
 ## Shared with the EIF2AK3 project
 
-This project uses the conda environments, FIRE v0.5.0, AMALGAM, pixi, GRCh38 + GENCODE v49 and the
-minimap2 index that are already installed in `/home/wangf3/feng/projects/TEQUILA_EIF2AK3`. Nothing
+This is a separate project with its own data. It only shares software and reference files with the
+EIF2AK3 project: the conda environments, FIRE v0.5.0, AMALGAM, pixi, GRCh38 + GENCODE v49 and the
+minimap2 index already installed in `/home/wangf3/feng/projects/TEQUILA_EIF2AK3`. Nothing
 is installed twice, and this project never writes into that folder. The only exception is the
 shared minimap2 index: it is built once there, and a lock stops two jobs from building it at the
 same time. Its own outputs go to `/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab`.
@@ -160,9 +161,6 @@ git pull
 
 ## Notes
 
-- **More flowcells.** The EIF2AK3 flowcells 3B / 3C (same start time) also have barcode17-24
-  folders. If the swab library was pooled onto them as well, add them to `FLOWCELLS` in
-  `config.sh`; the comment there shows the line.
 - **Full length** is judged against the canonical transcript. A read of another isoform that skips
   the canonical first or last exon is not counted as full length; the isoform reports cover those.
 - The scripts were tested in a sandbox on synthetic reads (coverage, full-length counts and the

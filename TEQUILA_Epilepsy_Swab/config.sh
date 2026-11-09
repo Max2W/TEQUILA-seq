@@ -38,11 +38,8 @@ CONDA_WRAPPER="${PROJECT_DIR}/bin/pipeline_env"
 # ---------------------------------------------------------------------------
 RAW_DIR="${RAW_DIR:-/mnt/isilon/lin_lab_share/Feng/TEQUILA_Epilepsy_Buccal_Swab_Pilot}"
 
-# Flowcell runs to use. Each entry is "<short label>:<run folder>"; the run folder
-# is inside RAW_DIR, or a full path. Barcodes from several flowcells are merged per
-# sample. The EIF2AK3 flowcells 3B / 3C (same start time) also have barcode17-24
-# folders; if the swab library was pooled onto them, add them with a line like:
-#   "FC3B:/mnt/isilon/lin_lab_share/Feng/Elena_EAP/TEQUILA_Kidney_EAP/20261104_1300_3B_PBM77320_5544ec5f"
+# The swab pilot was sequenced on one flowcell (3A); its samples are barcodes 17-24.
+# Each entry is "<short label>:<run folder inside RAW_DIR>".
 FLOWCELLS=(
   "FC3A:20261104_1300_3A_PBM76834_dd62c4a3"
 )
