@@ -1,0 +1,9 @@
+sample_id	no	donor	species	cell_type	treatment	condition	barcode
+Zymo_A	1	A	Human	Buccal_swab	Zymo R1107-1 swab + Zymo Quick-RNA Microprep	Zymo	barcode17
+Zymo_B	2	B	Human	Buccal_swab	Zymo R1107-1 swab + Zymo Quick-RNA Microprep	Zymo	barcode18
+Zymo_C	3	C	Human	Buccal_swab	Zymo R1107-1 swab + Zymo Quick-RNA Microprep	Zymo	barcode19
+Zymo_D	4	D	Human	Buccal_swab	Zymo R1107-1 swab + Zymo Quick-RNA Microprep	Zymo	barcode20
+Genotek_A	5	A	Human	Buccal_swab	Genotek OR-100 swab + Qiagen miRNeasy	Genotek	barcode21
+Genotek_B	6	B	Human	Buccal_swab	Genotek OR-100 swab + Qiagen miRNeasy	Genotek	barcode22
+Genotek_C	7	C	Human	Buccal_swab	Genotek OR-100 swab + Qiagen miRNeasy	Genotek	barcode23
+Genotek_D	8	D	Human	Buccal_swab	Genotek OR-100 swab + Qiagen miRNeasy	Genotek	barcode24

@@ -1,0 +1,4 @@
+# Genes analysed in the epilepsy buccal-swab pilot: one GENCODE gene name per line.
+# Add the rest of the probe panel here; every step reads this list.
+STXBP1
+SYNGAP1
