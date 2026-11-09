@@ -1,9 +1,16 @@
-# TEQUILA-seq: EIF2AK2 isoforms in MDMs and iPSC neurons (EAP samples)
+# TEQUILA-seq: EIF2AK3 (PERK) isoforms in MDMs and iPSC neurons (EAP samples)
 
-This folder holds the analysis of the EIF2AK2 TEQUILA-seq run
+This folder holds the analysis of the EIF2AK3 (PERK) TEQUILA-seq run
 (`/mnt/isilon/lin_lab_share/Feng/Elena_EAP/TEQUILA_Kidney_EAP`, PromethION flowcells 3B and 3C,
-started 2026-11-04 13:00). It runs this repository's TEQUILA-seq code and adds two things: a fast
-path that works only on EIF2AK2 reads, and AMALGAM as a second isoform caller.
+started 2026-11-04 13:00). The probes target EIF2AK3. The branch, this folder and the HPC project
+folder keep the name EIF2AK2 from when the analysis was set up. EIF2AK2 (PKR) is still analysed
+as an off-target comparison gene.
+
+The analysis runs this repository's TEQUILA-seq code and adds two things: a fast path that works
+only on the target gene's reads, and AMALGAM as a second isoform caller.
+
+3B and 3C are the same library sequenced twice. Each barcode's reads from both flowcells are
+aligned separately and pooled for quantification. QC is still reported per flowcell.
 
 ## Samples
 
@@ -26,7 +33,7 @@ The sheet treats DMSO in donor 114 as the vehicle. Donor 114 has no untreated co
 fastq_pass/barcodeNN (3B + 3C) --01--> fastq/<sample>/<flowcell>.fastq.gz
    |
    |-- FAST PATH (hours) -------------------------------------------------------------
-   |   02  FIRE v0.5.0 index -> EIF2AK2 / EIF2AK3 anchor 31-mers (unique to the gene)
+   |   02  FIRE v0.5.0 index -> EIF2AK3 / EIF2AK2 anchor 31-mers (unique to the gene)
    |   03  k-mer bait every read -> align only the baited reads (minimap2, TEQUILA settings)
    |   04  ESPRESSO (this repo's Snakefile) on the gene BAMs with the gene's annotation
    |   05  AMALGAM on the gene BAMs                                (05_amalgam.sh fast)
@@ -41,9 +48,9 @@ fastq_pass/barcodeNN (3B + 3C) --01--> fastq/<sample>/<flowcell>.fastq.gz
 
 **Why the fast path works.** FIRE's index stores every transcript of every gene, and for each 31-mer
 it records whether the 31-mer occurs in only one gene. `scripts/fire_gene_kmers.py` collects the
-EIF2AK2 31-mers that FIRE counts as anchors, using the same rule as FIRE's read decoder. The anchors
-leave out sequence that EIF2AK2 shares with other genes, such as the EIF2AK1/3/4 kinase domain.
-EIF2AK2 is not on `panel_653`, so the protein-coding (`pcg`) dictionary is used.
+EIF2AK3 31-mers that FIRE counts as anchors, using the same rule as FIRE's read decoder. The anchors
+leave out sequence that EIF2AK3 shares with other genes, such as the EIF2AK1/2/4 kinase domain.
+Neither EIF2AK3 nor EIF2AK2 is on `panel_653`, so the protein-coding (`pcg`) dictionary is used.
 `scripts/kmer_bait_reads.py` then scans every read with numpy and keeps a read that has at least
 `BAIT_MIN_HITS` (default 3) anchor positions on either strand. Only those reads are aligned, so
 ESPRESSO and AMALGAM run on thousands of reads instead of millions. `fast/bait_align_stats.tsv` shows
@@ -124,14 +131,10 @@ Samples with fewer than 20 gene reads are shown, but they are left out of the st
 
 ## Things to check first
 
-1. **EIF2AK2 or EIF2AK3.** The request says the probes are for EIF2AK3 (PERK), but the branch and
-   folder are named EIF2AK2 (PKR). Both genes are analysed. `qc/per_sample_qc.tsv`,
-   `qc/top_genes.tsv` and `fast/bait_summary_all.tsv` show which gene the panel actually captured.
-2. **Flowcells 3B and 3C.** Both have barcode01-14 and are merged per barcode by default. The run
-   folder is named `TEQUILA_Kidney_EAP`, and both flowcells also carry barcodes 15-24. If 3B and 3C
-   are different libraries, `qc/fastq_read_counts.tsv` and the per-flowcell rows of
-   `qc/per_input_qc.tsv` will show it. In that case, remove the wrong line from `FLOWCELLS` in
-   `config.sh` and re-run.
+1. **Capture.** `qc/per_sample_qc.tsv` and `qc/top_genes.tsv` should show EIF2AK3 as the top
+   captured gene. EIF2AK2 reads show the background level.
+2. **Flowcell agreement.** 3B and 3C are the same library, so the per-flowcell rows of
+   `qc/per_input_qc.tsv` should show similar on-target rates for each barcode.
 3. **AMALGAM's StringTie step** uses default settings, as AMALGAM's README specifies. AMALGAM is under
    active development, so set `AMALGAM_COMMIT` in `config.sh` to pin the commit you report.
 
@@ -145,6 +148,6 @@ Samples with fewer than 20 gene reads are shown, but they are left out of the st
 - FIRE v0.5.0: your pixi environment. It is used only to read the index in step 02.
 
 The scripts were tested in a sandbox without the data or the cluster: the read bait was checked
-against a brute-force k-mer count, the report and AMALGAM merge on synthetic EIF2AK2 data, the
+against a brute-force k-mer count, the report and AMALGAM merge on synthetic data, the
 FIRE k-mer extraction against a mock of the index API, and the job chaining with a stand-in
 `sbatch`. Nothing has yet been run on Respublica, against your real FIRE index, or on the reads.

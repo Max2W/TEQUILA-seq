@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Alignment QC for the EIF2AK2 TEQUILA-seq run.
+"""Alignment QC for the EIF2AK3 TEQUILA-seq run.
 
 For every flowcell input BAM and every merged per-sample BAM:
   reads (primary records), mapped, mapping rate, reads overlapping each target gene and the

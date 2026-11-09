@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isoform report for one gene (EIF2AK2 by default) from ESPRESSO or AMALGAM output.
+"""Isoform report for one gene (EIF2AK3 by default) from ESPRESSO or AMALGAM output.
 
 Inputs
   --matrix       counts matrix: transcript_ID, transcript_name, gene_ID, <one column per sample>
@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument('--isoform-gtf', required=True)
     parser.add_argument('--ref-gtf', required=True)
     parser.add_argument('--sample-sheet', required=True)
-    parser.add_argument('--gene', default='EIF2AK2')
+    parser.add_argument('--gene', default='EIF2AK3')
     parser.add_argument('--method', default='ESPRESSO', help='label used in titles and file names')
     parser.add_argument('--outdir', required=True)
     parser.add_argument('--find-as', help='path to scripts/Find_AS_Events.py (optional)')

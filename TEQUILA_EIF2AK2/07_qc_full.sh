@@ -2,7 +2,7 @@
 # QC on the full alignments from 06_espresso_full.sh (can run as soon as the
 # alignment/<sample>/<i>/aligned.sorted.sam files exist; ESPRESSO need not be done).
 #   * per flowcell input and per sample (flowcells merged): reads, mapped,
-#     reads on EIF2AK2 / EIF2AK3, read length and quality, top genes by reads
+#     reads on EIF2AK3 / EIF2AK2, read length and quality, top genes by reads
 #   * the repo's qc_analysis/plot_on_target_rates.py figure
 # Outputs: ${QC_DIR}/bam/<sample>.bam (merged, indexed; also used by 05_amalgam.sh full)
 #          ${QC_DIR}/per_input_qc.tsv, per_sample_qc.tsv, top_genes.tsv, *.pdf
@@ -53,7 +53,7 @@ python "${ANALYSIS_DIR}/scripts/qc_alignments.py" \
   --sample-sheet "${SAMPLE_SHEET}" --gtf "${GTF}" --target-genes "$(IFS=,; echo "${TARGET_GENES[*]}")" \
   --threads "${THREADS}" --outdir "${QC_DIR}"
 
-# the repo's standard on-target figure (targets = EIF2AK2 + EIF2AK3 gene bodies)
+# the repo's standard on-target figure (targets = EIF2AK3 + EIF2AK2 gene bodies)
 rates_in="${QC_DIR}/rates_in.tsv"
 : > "${rates_in}"
 while IFS=$'\t' read -r sample _no _donor _sp cell _trt _cond _bc; do
@@ -62,5 +62,5 @@ while IFS=$'\t' read -r sample _no _donor _sp cell _trt _cond _bc; do
   printf '%s\t%s\t%s\t%s\n' "${sample}" "${QC_DIR}/bam/${sample}.bam" "${QC_DIR}/target_genes.bed" "${cell}" >> "${rates_in}"
 done < "${SAMPLE_SHEET}"
 python "${CODE_DIR}/qc_analysis/plot_on_target_rates.py" --mapping-file "${rates_in}" \
-  --outprefix "${QC_DIR}/rates" --title "TEQUILA-seq EIF2AK2" --threads "${THREADS}"
+  --outprefix "${QC_DIR}/rates" --title "TEQUILA-seq EIF2AK3" --threads "${THREADS}"
 echo "[qc] done: ${QC_DIR}"

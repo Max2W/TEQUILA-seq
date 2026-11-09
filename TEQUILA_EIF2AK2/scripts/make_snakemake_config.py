@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the TEQUILA-seq snakemake_config.yaml for the EIF2AK2 dataset.
+"""Write the TEQUILA-seq snakemake_config.yaml for the EIF2AK3 (EAP) dataset.
 
 Each sample gets one input per flowcell (the merged fastq.gz from step 1).
 ESPRESSO treats multiple inputs with the same sample name as one sample, so
@@ -32,7 +32,7 @@ visualize_mem_gb: 40
 use_annotated_junctions_with_minimap2: true
 keep_espresso_c_temp: false
 output_compatible_isoforms: true
-# Visualization options (UCSC tracks; the EIF2AK2 figures come from step 5)
+# Visualization options (UCSC tracks; the gene figures come from 08_isoform_report.sh)
 enable_visualization: false
 visualization_path: '{visualization_path}'
 vis_normalize_counts: false

@@ -3,7 +3,7 @@
 
 Run inside FIRE's pixi environment, e.g.
     pixi run --manifest-path $FIRE_DIR/pixi.toml python fire_gene_kmers.py \
-        --index $FIRE_INDEX --gene EIF2AK2 --outdir kmers/EIF2AK2
+        --index $FIRE_INDEX --gene EIF2AK3 --outdir kmers/EIF2AK3
 
 How the k-mers are chosen
 -------------------------
@@ -13,8 +13,8 @@ How the k-mers are chosen
   A k-mer is kept as an ANCHOR only when the index marks it globally unique (it occurs in this one gene
   across the full reference, coding and non-coding) and its gene set is exactly this gene. These are
   the k-mers FIRE itself treats as
-  anchors, so a read that carries them comes from this gene and not from a paralog (for EIF2AK2:
-  EIF2AK1/3/4 share kinase-domain sequence). This is the same rule as FIRE's read decoder
+  anchors, so a read that carries them comes from this gene and not from a paralog (for EIF2AK3:
+  EIF2AK1/2/4 share kinase-domain sequence). This is the same rule as FIRE's read decoder
   (`decode_anchors_and_colour_classes`): the string's global-uniqueness bit, and its one gene.
 
 Outputs (in --outdir)
@@ -36,7 +36,7 @@ import numpy as np
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--index', required=True, help='FIRE v0.5.0 index directory (has meta.json)')
-    parser.add_argument('--gene', required=True, help='protein-coding gene symbol, e.g. EIF2AK2')
+    parser.add_argument('--gene', required=True, help='protein-coding gene symbol, e.g. EIF2AK3')
     parser.add_argument('--scope', default='pcg', help='k-mer dictionary scope (default: pcg)')
     parser.add_argument('--outdir', required=True)
     parser.add_argument('--check', action='store_true',

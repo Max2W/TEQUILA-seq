@@ -1,6 +1,6 @@
 #!/bin/bash
 # FAST PATH, step A2: for every sample
-#   1. bait reads that carry EIF2AK2 / EIF2AK3 anchor 31-mers (all flowcells)
+#   1. bait reads that carry EIF2AK3 / EIF2AK2 anchor 31-mers (all flowcells)
 #   2. align only the baited reads to GRCh38 with the TEQUILA-seq minimap2 settings
 #   3. cut one BAM per gene (reads overlapping the gene) for ESPRESSO / AMALGAM
 # Outputs in ${FAST_DIR}:

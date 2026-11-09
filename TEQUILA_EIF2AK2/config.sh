@@ -1,5 +1,6 @@
 #!/bin/bash
-# Central settings for the EIF2AK2 TEQUILA-seq analysis (Elena / EAP samples).
+# Central settings for the EIF2AK3 (PERK) TEQUILA-seq analysis (Elena / EAP samples).
+# The folder and branch are named EIF2AK2 for historical reasons; the probes target EIF2AK3.
 # Every step script sources this file. Edit here, not in the step scripts.
 
 # ---------------------------------------------------------------------------
@@ -31,9 +32,8 @@ ANALYSIS_ENV="${PROJECT_DIR}/envs/analysis"
 RAW_DIR="${RAW_DIR:-/mnt/isilon/lin_lab_share/Feng/Elena_EAP/TEQUILA_Kidney_EAP}"
 
 # Flowcell runs to use. Each entry is "<short label>:<run folder>".
-# By default both PromethION flowcells (3B and 3C) are merged per barcode.
-# If 3B and 3C turn out to be different libraries (check qc/fastq_read_counts.tsv
-# and qc/per_flowcell_target_reads.tsv), delete the line that does not belong.
+# 3B and 3C are the same library sequenced twice, so both are merged per barcode
+# (aligned separately, pooled by ESPRESSO / AMALGAM; per-flowcell QC is kept).
 FLOWCELLS=(
   "FC3B:20261104_1300_3B_PBM77320_5544ec5f"
   "FC3C:20261104_1300_3C_PBM77349_35b0a072"
@@ -53,9 +53,9 @@ GTF_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${GEN
 # ---------------------------------------------------------------------------
 # Target genes
 # ---------------------------------------------------------------------------
-# EIF2AK2 = PKR. EIF2AK3 (PERK) is analysed alongside it so the QC can show
-# which of the two the probe panel actually captured.
-TARGET_GENES=(EIF2AK2 EIF2AK3)
+# EIF2AK3 = PERK, the gene the TEQUILA-seq probes target. EIF2AK2 (PKR) is kept
+# as an off-target comparison: its reads show the background capture level.
+TARGET_GENES=(EIF2AK3 EIF2AK2)
 
 # ---------------------------------------------------------------------------
 # Fast path: FIRE k-mer bait -> targeted alignment -> ESPRESSO + AMALGAM

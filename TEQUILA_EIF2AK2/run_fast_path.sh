@@ -1,5 +1,5 @@
 #!/bin/bash
-# Submit the whole EIF2AK2 fast path as a chain of SLURM jobs, each starting
+# Submit the whole EIF2AK3 fast path as a chain of SLURM jobs, each starting
 # only after the previous one succeeds:
 #   01 merge fastq -> 02 FIRE k-mers -> 03 bait + align -> 04 ESPRESSO (targeted)
 #                                                       -> 05 AMALGAM (targeted)
