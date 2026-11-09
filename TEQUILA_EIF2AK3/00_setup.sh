@@ -69,7 +69,15 @@ setup_amalgam() {
   git -C "${AMALGAM_DIR}" fetch --quiet origin || true
   git -C "${AMALGAM_DIR}" checkout --quiet "${AMALGAM_COMMIT}"
   echo "[setup] AMALGAM at $(git -C "${AMALGAM_DIR}" rev-parse HEAD)"
-  make_env "${AMALGAM_ENV}" "${AMALGAM_DIR}/conda_requirements.txt" stringtie \
+  # AMALGAM's list pins biopython=1.78 together with python=3.11, but biopython 1.78
+  # was never built for python 3.11, so that list cannot be installed. AMALGAM's
+  # README asks for biopython 1.78 or newer; only that pin is relaxed, the rest is kept.
+  local reqs="${PROJECT_DIR}/envs/amalgam_requirements.txt"
+  mkdir -p "$(dirname "${reqs}")"
+  sed 's/^biopython=1\.78$/biopython>=1.78/' "${AMALGAM_DIR}/conda_requirements.txt" > "${reqs}"
+  echo "[setup] AMALGAM requirements used:"
+  diff "${AMALGAM_DIR}/conda_requirements.txt" "${reqs}" || true
+  make_env "${AMALGAM_ENV}" "${reqs}" stringtie \
     --override-channels -c conda-forge -c bioconda
 }
 
