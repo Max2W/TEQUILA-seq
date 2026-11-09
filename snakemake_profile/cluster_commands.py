@@ -1,5 +1,6 @@
 import os
 import os.path
+import shlex
 
 
 def submit_command(log_out, log_err, threads, time_hours, mem_mb,
@@ -11,6 +12,11 @@ def submit_command(log_out, log_err, threads, time_hours, mem_mb,
             os.makedirs(log_dir, exist_ok=True)
 
     command = ['sbatch', '-o', log_out, '-e', log_err]
+    # Optional site-specific flags (e.g. "--account=abc --partition=xyz")
+    extra_sbatch_args = os.environ.get('TEQUILA_SBATCH_EXTRA', '').strip()
+    if extra_sbatch_args:
+        command.extend(shlex.split(extra_sbatch_args))
+
     if threads:
         command.extend(['-c', str(threads)])
 

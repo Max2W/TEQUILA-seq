@@ -1,0 +1,15 @@
+sample_id	no	donor	species	cell_type	treatment	condition	barcode
+MDM_114_DMSO	1	EAP_1.5.114	Human	MDM	DMSO	Vehicle	barcode01
+MDM_114_TG2h	2	EAP_1.5.114	Human	MDM	TG 2h	TG_2h	barcode02
+MDM_114_LPS2h	3	EAP_1.5.114	Human	MDM	LPS 2h	LPS_2h	barcode03
+MDM_130_Ctl	4	EAP_1.5.130	Human	MDM	Ctl	Ctl	barcode04
+MDM_130_Vehicle	5	EAP_1.5.130	Human	MDM	Vehicle	Vehicle	barcode05
+MDM_130_TG2h	6	EAP_1.5.130	Human	MDM	TG 2h	TG_2h	barcode06
+MDM_130_LPS2h	7	EAP_1.5.130	Human	MDM	LPS 2h	LPS_2h	barcode07
+MDM_136_Ctl	8	EAP_1.5.136	Human	MDM	Ctl	Ctl	barcode08
+MDM_136_Vehicle	9	EAP_1.5.136	Human	MDM	Vehicle	Vehicle	barcode09
+MDM_136_TG2h	10	EAP_1.5.136	Human	MDM	TG 2h	TG_2h	barcode10
+MDM_136_LPS2h	11	EAP_1.5.136	Human	MDM	LPS 2h	LPS_2h	barcode11
+iN_147_Ctl	12	EAP_1.5.147	Human	iPSC_neuron	Ctl	Ctl	barcode12
+iN_147_Vehicle	13	EAP_1.5.147	Human	iPSC_neuron	Vehicle	Vehicle	barcode13
+iN_147_TG2h	14	EAP_1.5.147	Human	iPSC_neuron	TG 2h	TG_2h	barcode14

@@ -1,0 +1,59 @@
+#!/bin/bash
+# Isoform reports for every target gene and every quantification that exists:
+#   ESPRESSO_fast  ${FAST_DIR}/espresso/<GENE>/      (04_espresso_targeted.sh)
+#   AMALGAM_fast   ${FAST_DIR}/amalgam/<GENE>/       (05_amalgam.sh fast)
+#   ESPRESSO_full  ${PIPELINE_DIR}/espresso_out/     (06_espresso_full.sh)
+#   AMALGAM_full   ${PROJECT_DIR}/amalgam_full/      (05_amalgam.sh full)
+# -> ${RESULTS_DIR}/<GENE>/<METHOD>/  (tables, figures, <GENE>_<METHOD>_report.md)
+# -> ${RESULTS_DIR}/<GENE>/method_comparison*  (when two or more methods are done)
+# Missing runs are skipped, so this can be re-run as more of them finish.
+#
+# Usage: bash 08_isoform_report.sh   (submits itself; LOCAL=1 to run here)
+set -euo pipefail
+
+_D="${TEQ_ANALYSIS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+source "${_D}/lib.sh"
+
+if submit_self eif2ak2_report 2 16G 02:00:00 "${_D}/08_isoform_report.sh" "$@"; then
+  exit 0
+fi
+
+activate_env "${ANALYSIS_ENV}"
+GTF="${REF_DIR}/${GTF_NAME}"
+
+report() {  # report <gene> <method> <matrix> <isoform gtf>
+  local gene="$1" method="$2" matrix="$3" iso_gtf="$4"
+  if [[ ! -s "${matrix}" || ! -s "${iso_gtf}" ]]; then
+    echo "[${gene}/${method}] not available yet, skipped" >&2
+    return 0
+  fi
+  local out="${RESULTS_DIR}/${gene}/${method}"
+  mkdir -p "${out}"
+  python "${ANALYSIS_DIR}/scripts/isoform_report.py" \
+    --matrix "${matrix}" --isoform-gtf "${iso_gtf}" --ref-gtf "${GTF}" \
+    --sample-sheet "${SAMPLE_SHEET}" --gene "${gene}" --method "${method}" \
+    --find-as "${CODE_DIR}/scripts/Find_AS_Events.py" --outdir "${out}" \
+    || echo "[${gene}/${method}] report failed" >&2
+}
+
+for gene in "${TARGET_GENES[@]}"; do
+  wd="espresso_out/work_dir"
+  report "${gene}" ESPRESSO_fast "${FAST_DIR}/espresso/${gene}/${wd}/samples_N2_R0_abundance.esp" \
+    "${FAST_DIR}/espresso/${gene}/${wd}/samples_N2_R0_updated.gtf"
+  report "${gene}" AMALGAM_fast "${FAST_DIR}/amalgam/${gene}/amalgam_counts_matrix.tsv" \
+    "${FAST_DIR}/amalgam/${gene}/amalgam.transcripts.gtf"
+  report "${gene}" ESPRESSO_full "${PIPELINE_DIR}/${wd}/samples_N2_R0_abundance.esp" \
+    "${PIPELINE_DIR}/${wd}/samples_N2_R0_updated.gtf"
+  report "${gene}" AMALGAM_full "${PROJECT_DIR}/amalgam_full/amalgam_counts_matrix.tsv" \
+    "${PROJECT_DIR}/amalgam_full/amalgam.transcripts.gtf"
+
+  runs=()
+  for method in ESPRESSO_fast AMALGAM_fast ESPRESSO_full AMALGAM_full; do
+    [[ -d "${RESULTS_DIR}/${gene}/${method}" ]] && runs+=(--run "${method}=${RESULTS_DIR}/${gene}/${method}")
+  done
+  if (( ${#runs[@]} >= 4 )); then
+    python "${ANALYSIS_DIR}/scripts/compare_methods.py" --gene "${gene}" "${runs[@]}" \
+      --out-prefix "${RESULTS_DIR}/${gene}/method_comparison" || true
+  fi
+done
+echo "[report] results in ${RESULTS_DIR}"
