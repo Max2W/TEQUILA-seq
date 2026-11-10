@@ -12,12 +12,12 @@ require_vars FIRE_DIR FIRE_INDEX
 
 after="${FASTQ_JOB:-}"   # set by run_all.sh, which submits step 01 once for both paths
 if [[ -z "${after}" && "${SKIP_FASTQ:-0}" != "1" ]]; then
-  after=$(bash "${_D}/01_prepare_fastq.sh")
+  after=$(job_id "$(bash "${_D}/01_prepare_fastq.sh")")
 fi
 # the FIRE index / k-mers do not need the fastq files, so they start right away
-j_kmers=$(AFTER="" bash "${_D}/02_fire_gene_kmers.sh")
-j_bait=$(AFTER="${j_kmers}${after:+:${after}}" bash "${_D}/03_bait_and_align.sh")
-j_esp=$(AFTER="${j_bait}" bash "${_D}/04_espresso_targeted.sh")
-j_am=$(AFTER="${j_bait}" bash "${_D}/05_amalgam.sh" fast)
-j_rep=$(AFTER="${j_esp}:${j_am}" bash "${_D}/08_isoform_report.sh")
+j_kmers=$(job_id "$(AFTER="" bash "${_D}/02_fire_gene_kmers.sh")")
+j_bait=$(job_id "$(AFTER="${j_kmers}${after:+:${after}}" bash "${_D}/03_bait_and_align.sh")")
+j_esp=$(job_id "$(AFTER="${j_bait}" bash "${_D}/04_espresso_targeted.sh")")
+j_am=$(job_id "$(AFTER="${j_bait}" bash "${_D}/05_amalgam.sh" fast)")
+j_rep=$(job_id "$(AFTER="${j_esp}:${j_am}" bash "${_D}/08_isoform_report.sh")")
 echo "fast path submitted; reports job ${j_rep}. Watch: squeue -u \$USER"

@@ -7,6 +7,6 @@ _D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_D}/lib.sh"
 require_vars FIRE_DIR FIRE_INDEX
 
-fastq_job=$(bash "${_D}/01_prepare_fastq.sh")
+fastq_job=$(job_id "$(bash "${_D}/01_prepare_fastq.sh")")
 FASTQ_JOB="${fastq_job}" bash "${_D}/run_fast_path.sh"
 FASTQ_JOB="${fastq_job}" bash "${_D}/run_full_path.sh"

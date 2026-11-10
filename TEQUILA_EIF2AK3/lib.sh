@@ -49,10 +49,19 @@ submit_self() {
   job_id=$(sbatch --parsable --job-name="${name}" --cpus-per-task="${cpus}" --mem="${mem}" \
     --time="${time}" -o "${LOG_DIR}/${name}_%j.out" -e "${LOG_DIR}/${name}_%j.err" \
     "${dep[@]}" ${SBATCH_EXTRA} --export=ALL,TEQ_ANALYSIS_DIR="${_TEQ_DIR}",TEQ_IN_JOB=1 \
-    "${script}" "$@")
-  echo "${job_id%%;*}"
+    "${script}" "$@") || { echo "ERROR: sbatch refused ${name}" >&2; exit 1; }
+  job_id="${job_id%%;*}"
+  [[ "${job_id}" =~ ^[0-9]+$ ]] || { echo "ERROR: sbatch gave no job id for ${name}: ${job_id}" >&2; exit 1; }
+  echo "${job_id}"
   echo "submitted ${name}: job ${job_id%%;*} (log: ${LOG_DIR}/${name}_${job_id%%;*}.out)" >&2
   return 0
+}
+
+# job_id <output of a step script that submitted itself>: the job id, or stop
+job_id() {
+  local id="${1##*$'\n'}"
+  [[ "${id}" =~ ^[0-9]+$ ]] || { echo "ERROR: expected a job id, got: $1" >&2; exit 1; }
+  echo "${id}"
 }
 
 # require_vars VAR... : stop with a clear message if any is empty
