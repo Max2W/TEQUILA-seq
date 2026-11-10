@@ -25,7 +25,7 @@ make_config() {
     --read-counts "${QC_DIR}/fastq_read_counts.tsv" --min-reads 1 \
     --code-dir "${CODE_DIR}" --conda-wrapper "${CONDA_WRAPPER}" --gtf-name "${GTF_NAME}" --fasta-name "${FASTA_NAME}" \
     --threads 16 \
-    --out "${PIPELINE_DIR}/snakemake_config.yaml" --index-out "${PIPELINE_DIR}/input_index.tsv"
+    --out "${PIPELINE_DIR}/snakemake_config.yaml" --index-out "${PIPELINE_DIR}/input_index.tsv" >&2
 }
 
 # Written on the login node too (unless waiting on step 01), so problems show up at once
