@@ -74,6 +74,9 @@ def main():
     parser.add_argument('--read-counts',
                         help='fastq_read_counts.tsv from step 1 (optional)')
     parser.add_argument('--out', required=True)
+    parser.add_argument('--conda-wrapper',
+                        help='command that runs its arguments in the pipeline env '
+                             '(default: <code-dir>/conda_wrapper)')
     parser.add_argument('--index-out',
                         help='write sample/input_index/flowcell table here')
     args = parser.parse_args()
@@ -95,7 +98,7 @@ def main():
         visualization_path=os.path.join(args.code_dir, 'visualization'),
         gtf_name=args.gtf_name,
         fasta_name=args.fasta_name,
-        conda_wrapper=os.path.join(args.code_dir, 'conda_wrapper'),
+        conda_wrapper=args.conda_wrapper or os.path.join(args.code_dir, 'conda_wrapper'),
         espresso_path=os.path.join(args.code_dir, 'ESPRESSO_alpha1.2.2'))]
 
     n_samples = 0

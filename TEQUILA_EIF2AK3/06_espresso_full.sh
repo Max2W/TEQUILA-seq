@@ -15,6 +15,8 @@ source "${_D}/lib.sh"
 [[ -x "${PIPELINE_ENV}/bin/snakemake" ]] || { echo "pipeline env missing: run 00_setup.sh envs" >&2; exit 1; }
 [[ -L "${PIPELINE_DIR}/Snakefile" ]] || { echo "pipeline dir not set up: run 00_setup.sh pipeline" >&2; exit 1; }
 
+ensure_conda_wrapper
+
 make_config() {
   local fc_labels=() entry
   for entry in "${FLOWCELLS[@]}"; do fc_labels+=("${entry%%:*}"); done
@@ -22,7 +24,7 @@ make_config() {
     --sample-sheet "${SAMPLE_SHEET}" --fastq-dir "${FASTQ_DIR}" \
     --flowcells "$(IFS=,; echo "${fc_labels[*]}")" \
     --read-counts "${QC_DIR}/fastq_read_counts.tsv" --min-reads 1 \
-    --code-dir "${CODE_DIR}" --gtf-name "${GTF_NAME}" --fasta-name "${FASTA_NAME}" \
+    --code-dir "${CODE_DIR}" --conda-wrapper "${CONDA_WRAPPER}" --gtf-name "${GTF_NAME}" --fasta-name "${FASTA_NAME}" \
     --threads 16 \
     --out "${PIPELINE_DIR}/snakemake_config.yaml" --index-out "${PIPELINE_DIR}/input_index.tsv"
 }
@@ -32,7 +34,7 @@ if [[ "${TEQ_IN_JOB:-0}" != "1" && -z "${AFTER:-}" ]]; then
   make_config
   if [[ "${DRYRUN:-0}" == "1" ]]; then
     cd "${PIPELINE_DIR}"
-    "${CODE_DIR}/conda_wrapper" snakemake -n --quiet
+    "${CONDA_WRAPPER}" snakemake -n --quiet
     exit 0
   fi
 fi
@@ -43,4 +45,4 @@ fi
 
 make_config
 cd "${PIPELINE_DIR}"
-"${CODE_DIR}/conda_wrapper" snakemake --profile ./snakemake_profile
+"${CONDA_WRAPPER}" snakemake --profile ./snakemake_profile

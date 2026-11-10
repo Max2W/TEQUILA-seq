@@ -10,6 +10,26 @@ else
 fi
 source "${_TEQ_DIR}/config.sh"
 
+# Report the exact line and command whenever a step stops on an error.
+set -E
+trap 'teq_rc=$?; echo "[error] ${BASH_SOURCE[0]##*/} line ${LINENO}: \"${BASH_COMMAND}\" exited with ${teq_rc}" >&2' ERR
+
+# ensure_conda_wrapper: write ${CONDA_WRAPPER}, an executable that runs its
+# arguments inside the TEQUILA-seq pipeline env (Snakemake and its rules).
+ensure_conda_wrapper() {
+  mkdir -p "$(dirname "${CONDA_WRAPPER}")"
+  {
+    echo '#!/bin/bash'
+    echo "# written by TEQUILA_EIF2AK3/lib.sh: run a command in ${PIPELINE_ENV}"
+    echo 'if ! command -v conda >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi'
+    echo 'eval "$(conda shell.bash hook)"'
+    echo "conda activate \"${PIPELINE_ENV}\""
+    echo '"$@"'
+  } > "${CONDA_WRAPPER}.tmp"
+  chmod +x "${CONDA_WRAPPER}.tmp"
+  mv "${CONDA_WRAPPER}.tmp" "${CONDA_WRAPPER}"
+}
+
 # submit_self <job name> <cpus> <mem> <time> <script> [args...]
 # Re-submits the calling script to SLURM unless already inside a job or
 # LOCAL=1 is set (run in the current shell, e.g. inside an interactive job).

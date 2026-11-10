@@ -117,7 +117,10 @@ def load_anchors(specs):
     dup[:-1] |= same
     if dup.any():
         print('dropping {} k-mers shared between genes'.format(int(dup.sum())), file=sys.stderr)
-    return genes, codes[~dup], owners[~dup]
+    codes, owners = codes[~dup], owners[~dup]
+    if len(codes) == 0:
+        sys.exit('no gene-specific anchor k-mers left (all are shared between the genes)')
+    return genes, codes, owners
 
 
 def read_fastq(path):

@@ -26,6 +26,7 @@ preflight
 
 THREADS="${SLURM_CPUS_PER_TASK:-8}"
 GTF="${REF_DIR}/${GTF_NAME}"
+ensure_conda_wrapper
 
 for gene in "${TARGET_GENES[@]}"; do
   work="${FAST_DIR}/espresso/${gene}"
@@ -53,11 +54,11 @@ for gene in "${TARGET_GENES[@]}"; do
   python3 "${ANALYSIS_DIR}/scripts/make_snakemake_config.py" \
     --sample-sheet "${SAMPLE_SHEET}" --bam-dir "${FAST_DIR}/bam/${gene}" \
     --skip-samples "$(IFS=,; echo "${skip[*]:-}")" \
-    --code-dir "${CODE_DIR}" --gtf-name "${gene_gtf}" --fasta-name "${FASTA_NAME}" \
+    --code-dir "${CODE_DIR}" --conda-wrapper "${CONDA_WRAPPER}" --gtf-name "${gene_gtf}" --fasta-name "${FASTA_NAME}" \
     --threads "${THREADS}" --out snakemake_config.yaml --index-out input_index.tsv
 
   # local execution inside this job (no cluster profile): the inputs are small
-  "${CODE_DIR}/conda_wrapper" snakemake --cores "${THREADS}" --latency-wait 30 --printshellcmds \
+  "${CONDA_WRAPPER}" snakemake --cores "${THREADS}" --latency-wait 30 --printshellcmds \
     > "snakemake.log" 2>&1 || { echo "[${gene}] ESPRESSO failed, see ${work}/snakemake.log" >&2; exit 1; }
   echo "[${gene}] done: ${work}/espresso_out/work_dir/samples_N2_R0_abundance.esp"
 done

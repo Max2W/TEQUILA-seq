@@ -49,6 +49,7 @@ if [[ ! -s "${MMI}" ]]; then
   minimap2 -x splice -k 14 -w 4 -t "${THREADS}" -d "${MMI}.tmp" "${GENOME}" && mv "${MMI}.tmp" "${MMI}"
 fi
 
+echo "[fast] reference files ready"
 # gene loci from the GTF: GENE<TAB>chr:start-end
 LOCI="${FAST_DIR}/target_loci.tsv"
 awk -F'\t' -v genes="$(IFS=,; echo "${TARGET_GENES[*]}")" '
@@ -62,6 +63,7 @@ for gene in "${TARGET_GENES[@]}"; do
   mkdir -p "${FAST_DIR}/bam/${gene}"
 done
 
+echo "[fast] gene loci: $(tr '\n' ' ' < "${LOCI}")"
 anchor_args=()
 for gene in "${TARGET_GENES[@]}"; do
   anchor_args+=(--anchors "${gene}=${FAST_DIR}/kmers/${gene}/${gene}.anchor_kmers.fa")
@@ -82,14 +84,17 @@ bait_one() {
 export -f bait_one
 export FAST_DIR FASTQ_DIR ANALYSIS_DIR BAIT_MIN_HITS FORCE
 export ANCHOR_ARGS="${anchor_args[*]}"
+echo "[fast] baiting reads of $(sample_ids | wc -l) samples, ${THREADS} at a time (logs: ${FAST_DIR}/bait/<sample>.bait.log)"
 # shellcheck disable=SC2016
 sample_ids | xargs -P "${THREADS}" -I{} bash -c 'anchor_args=(${ANCHOR_ARGS}); bait_one "$1"' _ {}
 
+echo "[fast] baiting done"
 # --- 2/3. align each sample's baited reads, then cut per-gene BAMs ------------
 STATS="${FAST_DIR}/bait_align_stats.tsv"
 printf 'sample_id\tgene\treads_baited\treads_aligned_primary\treads_on_locus\tfraction_on_locus\n' > "${STATS}.tmp"
 for sample in $(sample_ids); do
   all_bam="${FAST_DIR}/bam/all/${sample}.bam"
+  echo "[fast] aligning ${sample}"
   if [[ ! -s "${all_bam}.bai" || "${FORCE:-0}" == "1" ]]; then
     # union of the reads baited for any gene (a read is written once)
     for gene in "${TARGET_GENES[@]}"; do zcat "${FAST_DIR}/bait/${sample}/${gene}.fastq.gz"; done \

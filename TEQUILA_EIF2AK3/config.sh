@@ -22,7 +22,9 @@ RESULTS_DIR="${PROJECT_DIR}/results"
 LOG_DIR="${PROJECT_DIR}/logs"
 
 # Conda environments (created by 00_setup.sh)
-PIPELINE_ENV="${CODE_DIR}/conda_env"        # path expected by the repo's conda_wrapper
+PIPELINE_ENV="${CODE_DIR}/conda_env"
+# runs a command inside PIPELINE_ENV; written by lib.sh (ensure_conda_wrapper)
+CONDA_WRAPPER="${PROJECT_DIR}/bin/pipeline_env"
 ANALYSIS_ENV="${PROJECT_DIR}/envs/analysis"
 
 # ---------------------------------------------------------------------------
