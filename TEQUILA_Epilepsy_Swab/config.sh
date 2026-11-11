@@ -5,9 +5,10 @@
 # ---------------------------------------------------------------------------
 # Locations on the HPC
 # ---------------------------------------------------------------------------
-# This project's folder: the code clone (branch Epilepsy_Swab) and all outputs.
-PROJECT_DIR="${PROJECT_DIR:-/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab}"
-CODE_DIR="${CODE_DIR:-${PROJECT_DIR}/TEQUILA-seq}"
+# Code lives in home; data and outputs live on scratch (home is not for data).
+CODE_DIR="${CODE_DIR:-/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq}"
+# all outputs, logs and working files of this project
+PROJECT_DIR="${PROJECT_DIR:-/scr1/users/wangf3/TEQUILA_Epilepsy_Swab}"
 ANALYSIS_DIR="${_TEQ_DIR:-${CODE_DIR}/TEQUILA_Epilepsy_Swab}"
 
 # Where outputs go
@@ -18,8 +19,8 @@ RESULTS_DIR="${PROJECT_DIR}/results"
 LOG_DIR="${PROJECT_DIR}/logs"
 
 # ---------------------------------------------------------------------------
-# Shared with the EIF2AK3 project (installed there once, used read-only here):
-# conda environments, FIRE, AMALGAM, pixi, GRCh38 + GENCODE v49, minimap2 index
+# Software installed by the earlier EIF2AK3 setup (kept in home, used read-only):
+# conda environments, FIRE, AMALGAM, pixi
 # ---------------------------------------------------------------------------
 SHARED_DIR="${SHARED_DIR:-/home/wangf3/feng/projects/TEQUILA_EIF2AK3}"
 PIPELINE_ENV="${SHARED_DIR}/TEQUILA-seq/conda_env"
@@ -28,7 +29,8 @@ AMALGAM_ENV="${SHARED_DIR}/envs/amalgam"
 AMALGAM_DIR="${SHARED_DIR}/tools/amalgam"
 FIRE_DIR="${SHARED_DIR}/tools/fire"
 TEQ_PIXI_DIR="${SHARED_DIR}/tools/pixi"
-REF_DIR="${SHARED_DIR}/references"
+# reference data on scratch: GRCh38 + GENCODE v49, minimap2 genome index
+REF_DIR="${REF_DIR:-/scr1/users/wangf3/TEQUILA_references}"
 # runs a command inside PIPELINE_ENV (written by 00_setup.sh; replaces the repo's
 # conda_wrapper, which only finds an env inside its own clone)
 CONDA_WRAPPER="${PROJECT_DIR}/bin/pipeline_env"
@@ -78,7 +80,7 @@ FIRE_TAG="v0.5.0"
 #   target (default): only the TARGET_GENES (seconds). Genome-wide specificity
 #     comes from step 03, which aligns every baited read to the whole genome and
 #     keeps only reads on the gene locus.
-#   all: every protein-coding gene (~20 min), shared with the EIF2AK3 project.
+#   all: every protein-coding gene (~20 min), kept in REF_DIR.
 #     Also the automatic fallback if the target-only build fails.
 FIRE_INDEX_MODE="${FIRE_INDEX_MODE:-target}"
 FIRE_INDEX_ALL="${REF_DIR}/fire_index_${FIRE_TAG}_gencode_v${GENCODE_RELEASE}_pcg"

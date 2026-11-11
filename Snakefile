@@ -267,8 +267,9 @@ rule align_with_minimap2:
     input:
         unpack(align_with_minimap2_input),
     output:
-        sam=os.path.join('alignment', '{sample}', '{sample_input_i}',
-                         'aligned.sam'),
+        # temp(): removed once aligned.sorted.sam exists, to save disk space
+        sam=temp(os.path.join('alignment', '{sample}', '{sample_input_i}',
+                              'aligned.sam')),
     log:
         out=os.path.join('alignment', '{sample}', '{sample_input_i}',
                          'align_with_minimap2_log.out'),
@@ -303,8 +304,9 @@ rule convert_bam_to_sam_with_samtools:
     input:
         bam=get_bam_path_from_wildcards,
     output:
-        sam=os.path.join('alignment', '{sample}', '{sample_input_i}',
-                         'aligned.sam'),
+        # temp(): removed once aligned.sorted.sam exists, to save disk space
+        sam=temp(os.path.join('alignment', '{sample}', '{sample_input_i}',
+                              'aligned.sam')),
     log:
         out=os.path.join('alignment', '{sample}', '{sample_input_i}',
                          'convert_bam_to_sam_with_samtools_log.out'),

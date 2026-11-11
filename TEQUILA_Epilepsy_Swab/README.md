@@ -24,14 +24,18 @@ Data: `/mnt/isilon/lin_lab_share/Feng/TEQUILA_Epilepsy_Buccal_Swab_Pilot`, flowc
 The probe panel is two genes, STXBP1 and SYNGAP1, listed in `target_genes.txt`. Every step reads
 that file.
 
-## Shared with the EIF2AK3 project
+## Where things are on the HPC
 
-This is a separate project with its own data. It only shares software and reference files with the
-EIF2AK3 project: the conda environments, FIRE v0.5.0, AMALGAM, pixi, GRCh38 + GENCODE v49 and the
-minimap2 index already installed in `/home/wangf3/feng/projects/TEQUILA_EIF2AK3`. Nothing
-is installed twice, and this project never writes into that folder. The only exception is the
-shared minimap2 index: it is built once there, and a lock stops two jobs from building it at the
-same time. Its own outputs go to `/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab`.
+- **Code** (this repository) is in home: `/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq`.
+- **Outputs, logs and working files** are on scratch: `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab`.
+- **Reference data** is on scratch: `/scr1/users/wangf3/TEQUILA_references`. It holds GRCh38 +
+  GENCODE v49 and the minimap2 genome index.
+- **Software** stays in home, in `/home/wangf3/feng/projects/TEQUILA_EIF2AK3`: the conda
+  environments, FIRE v0.5.0, AMALGAM and pixi from the earlier EIF2AK3 setup.
+
+Nothing is written to home except the code. Both paths together need roughly 100-150 GB on
+scratch; `00_setup.sh` stops if less than 200 GB is free there. The full path deletes each
+unsorted alignment as soon as its sorted copy exists.
 
 ## The steps
 
@@ -64,7 +68,7 @@ The isoform reports compare Genotek with Zymo, paired by donor (n = 4).
 
 Paste each block on the HPC login node, one at a time, in this order.
 
-### Step 1. Download the code (once)
+### Step 1. Get the code (once)
 
 ```bash
 mkdir -p /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
@@ -72,91 +76,73 @@ cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
 git clone -b Epilepsy_Swab https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
 ```
 
-### Step 2. Set up (seconds)
-
-This checks the shared tools and genes and creates this project's folders. It should end with
-`=== SETUP COMPLETE ===`:
-
-```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
-bash 00_setup.sh
-```
-
-### Step 3. Start the analysis
-
-The genome index is shared with the EIF2AK3 project. This block waits in the background until that
-index is ready, then submits all jobs; its messages go to `start.log`:
-
-```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
-nohup bash wait_and_run_all.sh > start.log 2>&1 &
-```
-
-To see whether the jobs were submitted:
-
-```bash
-cat /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab/start.log
-```
-
-### Step 4. Check on the jobs
-
-```bash
-squeue -u $USER -o "%.10i %.28j %.3t %.10M %R" | grep epi_
-```
-
-```bash
-sacct -u $USER -S today --format=JobID%10,JobName%28,State%14,Elapsed,MaxRSS | grep epi_ | grep -v "\.ba\|\.ex"
-```
-
-### Step 5. Look at the results
-
-Detection and fragmentation (fast path; ready a few hours after the start):
-
-```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
-column -t qc/fastq_read_counts.tsv
-column -t fast/bait_align_stats.tsv
-cat results/fragmentation/fast/fragmentation_report.md
-```
-
-Isoform reports, one per gene:
-
-```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
-cat results/STXBP1/ESPRESSO_fast/STXBP1_ESPRESSO_fast_report.md
-cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
-```
-
-All figures and tables:
-
-```bash
-ls /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/results/*/ /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/results/fragmentation/*/
-```
-
-### Getting code updates later
+If it is already there, update it instead:
 
 ```bash
 cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq
 git pull
 ```
 
-## Folder layout on the HPC
+### Step 2. Set up (seconds)
+
+It should end with `=== SETUP COMPLETE ===`:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+bash 00_setup.sh
+```
+
+### Step 3. Start both paths
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+bash run_all.sh
+```
+
+### Step 4. Check on the jobs
+
+```bash
+squeue -u $USER -o "%.10i %.28j %.3t %.10M %R" | grep -E "epi_|snakejob"
+```
+
+```bash
+sacct -u $USER -S today --format=JobID%10,JobName%28,State%14,ExitCode,Elapsed | grep epi_ | grep -v "\.ba\|\.ex"
+```
+
+If a job failed, the end of its error log names the failing line:
+
+```bash
+cd /scr1/users/wangf3/TEQUILA_Epilepsy_Swab/logs
+for f in $(ls -t *.err | head -3); do echo "=== $f"; tail -15 "$f"; done
+```
+
+### Step 5. Results
+
+```bash
+cd /scr1/users/wangf3/TEQUILA_Epilepsy_Swab
+column -t qc/fastq_read_counts.tsv
+column -t fast/bait_align_stats.tsv
+cat results/fragmentation/fast/fragmentation_report.md
+cat results/STXBP1/ESPRESSO_fast/STXBP1_ESPRESSO_fast_report.md
+cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
+```
+
+### Folder layout on scratch
 
 ```
-/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/
-  TEQUILA-seq/          this repo, branch Epilepsy_Swab (code)
-    TEQUILA_Epilepsy_Swab/   these scripts, samples.tsv, target_genes.txt
-  bin/pipeline_env      runs a command in the shared TEQUILA-seq conda env
-  fire_index/           FIRE index of the target genes
-  fastq/                merged fastq.gz per sample
+/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/
+  bin/pipeline_env      runs a command in the TEQUILA-seq conda env
+  fire_index/           FIRE index of STXBP1 + SYNGAP1
+  fastq/                merged fastq.gz per sample (needed by the full path)
   fast/                 kmers/, bait/, bam/<GENE>/, espresso/<GENE>/, amalgam/<GENE>/
-  pipeline/             full Snakemake run
+  pipeline/             full Snakemake run (alignment/, espresso_out/)
   amalgam_full/         genome-wide AMALGAM
   qc/                   read counts, per-sample QC, top captured genes
   results/
     fragmentation/fast/ and full/   detection + fragmentation report and figures
     <GENE>/<METHOD>/                isoform reports (ESPRESSO / AMALGAM, fast / full)
   logs/                 one .out/.err per SLURM job (job names start with epi_)
+/scr1/users/wangf3/TEQUILA_references/   GRCh38, GENCODE v49, minimap2 index
 ```
 
 ## Notes

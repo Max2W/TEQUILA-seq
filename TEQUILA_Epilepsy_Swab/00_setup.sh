@@ -1,9 +1,9 @@
 #!/bin/bash
 # Step 0 (run once, on a login node; takes seconds).
-# This project reuses everything installed by the EIF2AK3 project in ${SHARED_DIR}:
-# conda environments, FIRE v0.5.0, AMALGAM, pixi, GRCh38 + GENCODE v49.
-# This script only CHECKS those (it never changes the EIF2AK3 folder) and then
-#   * creates this project's folders
+# Code is in home; outputs go to ${PROJECT_DIR} and reference data is in ${REF_DIR}
+# (both on scratch). Software (conda envs, FIRE, AMALGAM, pixi) is reused from
+# ${SHARED_DIR}. This script only CHECKS those and then
+#   * creates this project's folders on scratch
 #   * writes ${CONDA_WRAPPER}, which runs a command in the shared pipeline env
 #   * creates the Snakemake working directory ${PIPELINE_DIR}
 set -euo pipefail
@@ -28,8 +28,8 @@ need "${FIRE_DIR}/.teq_build_ok" "FIRE v0.5.0 (compiled)"
 need "${REF_DIR}/${FASTA_NAME}.fai" "GRCh38 genome (indexed)"
 need "${REF_DIR}/${GTF_NAME}" "GENCODE v${GENCODE_RELEASE} annotation"
 if (( missing )); then
-  echo "[setup] Something shared is missing. Finish the EIF2AK3 setup first:" >&2
-  echo "        cd ${SHARED_DIR}/TEQUILA-seq/TEQUILA_EIF2AK3 && bash 00_setup.sh" >&2
+  echo "[setup] Something is missing (see MISSING above). Reference files belong in ${REF_DIR}" >&2
+  echo "        (moved there from ${SHARED_DIR}/references); software in ${SHARED_DIR}." >&2
   exit 1
 fi
 command -v pixi >/dev/null || { echo "[setup] pixi not found (expected in ${TEQ_PIXI_DIR}/bin or on PATH)" >&2; exit 1; }
@@ -43,6 +43,15 @@ for gene in "${TARGET_GENES[@]}"; do
     exit 1
   fi
 done
+
+# outputs go to scratch: check there is room (both paths need roughly 100-150 GB)
+mkdir -p "${PROJECT_DIR}"
+avail_gb=$(command df -P -BG "${PROJECT_DIR}" | awk 'NR == 2 {sub("G", "", $4); print $4}')
+echo "[setup] ok      ${avail_gb} GB free where outputs go (${PROJECT_DIR})"
+if (( avail_gb < ${MIN_FREE_GB:-200} )); then
+  echo "[setup] less than ${MIN_FREE_GB:-200} GB free in ${PROJECT_DIR}; free some space first" >&2
+  exit 1
+fi
 
 mkdir -p "${PIPELINE_DIR}" "${LOG_DIR}" "${FASTQ_DIR}" "${QC_DIR}" "${RESULTS_DIR}" "$(dirname "${CONDA_WRAPPER}")"
 
