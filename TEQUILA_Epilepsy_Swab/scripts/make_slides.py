@@ -60,6 +60,8 @@ def parse_args():
     p.add_argument("--sample-sheet", required=True)
     p.add_argument("--read-counts", required=True)
     p.add_argument("--run-label", required=True, help="flowcell / run name for the sequencing slide")
+    p.add_argument("--public-figures", help="figures of scripts/public_data_figures.py")
+    p.add_argument("--rin", help="optional TSV with sample_id, RIN of this pilot's swab RNA")
     p.add_argument("--out", required=True)
     return p.parse_args()
 
@@ -223,6 +225,9 @@ def main():
                   "Kits compared within donor (paired, n = {})".format(len({r["donor"] for r in sheet}))],
               8.3, 1.7, 4.6, 4.5, size=16)
 
+    if args.public_figures and os.path.isdir(args.public_figures):
+        public_slides(D, args, genes, samples)
+
     # 3. sequencing (reads per sample)
     path = os.path.join(deck_dir, "reads_per_sample.png")
     if os.path.exists(path):
@@ -359,6 +364,85 @@ def main():
 
     D.prs.save(args.out)
     print("{} slides -> {}".format(len(D.prs.slides), args.out))
+
+
+def public_slides(D, args, genes, samples):
+    pub = args.public_figures
+    mart = {}
+    raw = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "public_data", "martorella2023_summary.tsv")
+    for r in csv.DictReader((l for l in open(raw) if not l.startswith("#")), delimiter="\t"):
+        mart[(r["measure"], r["sample_type"])] = r
+    rins = []
+    if args.rin and os.path.exists(args.rin):
+        rins = [float(r["RIN"]) for r in read_tsv(args.rin) if r.get("RIN") and r["sample_id"] in samples]
+    ours = ("This pilot: RIN {} across {} swabs".format(fmt_range(rins, 1), len(rins)) if rins
+            else "This pilot: swab RNA RIN about 1-3 (per-sample values to be added)")
+    cite = ("Martorella M, et al. Evaluation of noninvasive biospecimens for transcriptome studies. BMC Genomics. "
+            "2023;24:790.")
+    p = os.path.join(pub, "public_martorella2023.png")
+    if os.path.exists(p):
+        b_rin = mart[("mean_RIN", "Buccal swab")]["value"]
+        q = mart[("illumina_preseq_qc", "Buccal swab")]
+        s = D.slide("Buccal swab RNA is highly degraded in published data too: mean RIN {}, and {} of {} swabs failed "
+                    "standard library QC".format(b_rin, q["n_fail"], q["n_total"]), size=26)
+        D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.6)
+        D.bullets(s, [
+            "{} healthy donors sampled 3-4 times: buccal swab, saliva, hair follicles and urine; short-read RNA-seq"
+            .format(19),
+            "Buccal swabs captured a median {}% of OMIM disease genes (> 0.1 TPM), against {}% for hair and {}% for "
+            "urine".format(mart[("omim_capture_percent", "Buccal swab")]["value"],
+                           mart[("omim_capture_percent", "Hair follicles")]["value"],
+                           mart[("omim_capture_percent", "Urine cell pellet")]["value"]),
+            ours], 0.5, 5.05, SW - 1.0, 1.6, size=14)
+        D.note(s, cite + " Values redrawn from the paper's text.", size=11)
+
+    expr = read_tsv(os.path.join(pub, "public_expression.tsv"))
+    val = {(r["source"], r["tissue"], r["gene"]): float(r["value"]) for r in expr}
+    p = os.path.join(pub, "public_accessible.png")
+    if os.path.exists(p) and expr:
+        def g(t, gene, src="GTEx v10"):
+            return val.get((src, t, gene))
+        sal = [g("Minor Salivary Gland", x) for x in genes]
+        s = D.slide("{} {} expressed at low levels in oral tissue: {} TPM in minor salivary gland".format(
+            " and ".join(genes), "are" if len(genes) > 1 else "is", " and ".join("{:.1f}".format(v) for v in sal if v is not None)), size=26)
+        D.picture(s, p, 0.3, 1.45, 7.9, 4.6)
+        items = ["Brain cortex: {} TPM".format(" and ".join("{:.0f}".format(g("Brain - Cortex", x) or 0)
+                                                            for x in genes)),
+                 "Whole blood: {} TPM".format(" and ".join("{:.1f}".format(g("Whole Blood", x) or 0) for x in genes)),
+                 "No public buccal swab or saliva dataset reports either gene, and no long-read RNA study of these "
+                 "sample types was found",
+                 "TEQUILA-seq reads per million (targeted capture) are not comparable to transcriptome-wide TPM"]
+        D.bullets(s, items, 8.4, 1.6, 4.6, 5.0, size=15)
+        D.note(s, "GTEx v10 median TPM per tissue (GTEx Portal API, retrieved 2026-11-12)", size=11)
+    for gene in genes:
+        p = os.path.join(pub, "public_gtex_{}.png".format(gene))
+        if os.path.exists(p):
+            s = D.slide("{} expression across GTEx v10 tissues".format(gene))
+            D.picture(s, p, 0.3, 1.45, SW - 0.6, 5.0)
+            D.note(s, "GTEx v10 short-read RNA-seq, TPM per sample; boxes sorted by median; whiskers 1.5 x IQR; "
+                      "accessible tissues in colour", size=11)
+    if expr:
+        s = D.slide("Public expression of {} in oral and accessible tissues".format(" and ".join(genes)))
+        rows = [["Source", "Tissue"] + genes]
+        for src, tissues in (("GTEx v10 (median TPM)", ["Minor Salivary Gland", "Esophagus - Mucosa", "Whole Blood",
+                                                         "Cells - Cultured fibroblasts", "Brain - Cortex"]),
+                             ("HPA (nTPM)", ["salivary gland", "tongue", "esophagus", "cerebral cortex"])):
+            key = "GTEx v10" if src.startswith("GTEx") else "Human Protein Atlas"
+            for t in tissues:
+                vals = [val.get((key, t, x)) for x in genes]
+                if any(v is not None for v in vals):
+                    rows.append([src, t[0].upper() + t[1:]] + ["NA" if v is None else "{:.1f}".format(v)
+                                                               for v in vals])
+        D.table(s, rows, 0.5, 1.6, 6.6, [2.2, 2.4] + [1.0] * len(genes), size=12)
+        D.bullets(s, [
+            "RNA diagnostics in clinically accessible tissues has used blood, fibroblasts, lymphoblastoid cells and "
+            "muscle, not buccal swabs (Cummings 2017; Fresard 2019; Aicher 2020; Murdock 2021)",
+            "Buccal and saliva RNA are degraded and partly non-human, so fewer genes are captured (Martorella 2023)",
+            "Detection of these two genes in buccal swab RNA has not, to our knowledge, been reported"],
+            7.5, 1.6, 5.4, 5.0, size=15)
+        D.note(s, "GTEx Portal API v2 and Human Protein Atlas search API, retrieved 2026-11-12. Cummings BB, et al. Sci "
+                  "Transl Med 2017; Fresard L, et al. Nat Med 2019; Aicher JK, et al. Genet Med 2020; Murdock DR, et "
+                  "al. J Clin Invest 2021; " + cite, size=10)
 
 
 def add_gene_slides(D, g, fig, deck_dir, samples, sheet):

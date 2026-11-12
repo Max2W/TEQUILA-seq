@@ -61,6 +61,14 @@ python "${ANALYSIS_DIR}/scripts/deck_figures.py" --genes "${genes_csv}" --gtf "$
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" \
   --bam-pattern "${FAST_DIR}/bam_filtered/{gene}/{sample}.bam" "${iso_args[@]}" --outdir "${FIG}/deck"
 
+# public data and literature figures (inputs committed under public_data/; optional rin.tsv of this pilot)
+rin_args=(); rin_slide=()
+if [[ -s "${ANALYSIS_DIR}/rin.tsv" ]]; then
+  rin_args=(--our-rin "${ANALYSIS_DIR}/rin.tsv"); rin_slide=(--rin "${ANALYSIS_DIR}/rin.tsv")
+fi
+python "${ANALYSIS_DIR}/scripts/public_data_figures.py" --public-dir "${ANALYSIS_DIR}/public_data" \
+  --genes "${genes_csv}" "${rin_args[@]}" --outdir "${FIG}/public"
+
 # run label for the sequencing slide: flow cell id(s) and run date(s) from the run folder names
 labels=()
 for fc in "${FLOWCELLS[@]}"; do
@@ -72,5 +80,6 @@ run_label="$(IFS=';'; echo "${labels[*]}" | sed 's/;/; /g')"
 mkdir -p "${RESULTS_DIR}/slides"
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
+  --public-figures "${FIG}/public" "${rin_slide[@]}" \
   --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
 echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"

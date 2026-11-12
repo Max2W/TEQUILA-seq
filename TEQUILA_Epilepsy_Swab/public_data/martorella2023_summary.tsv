@@ -1,0 +1,16 @@
+# Martorella M, Kasela S, Garcia-Flores R, Gokden A, Castel SE, Lappalainen T. Evaluation of noninvasive biospecimens
+# for transcriptome studies. BMC Genomics. 2023;24:790. doi:10.1186/s12864-023-09875-4. PMID 38114913, PMC10729488 (CC BY).
+# Values transcribed from the Results text of the full text (raw/martorella2023_PMC10729488.xml), retrieved 2026-11-12.
+# 19 healthy donors, 3-4 collections each; buccal swab, hair follicles, saliva (Oragene), urine cell pellets.
+measure	sample_type	value	n_fail	n_total	quote
+mean_RIN	Hair follicles	8.9			hair mean RIN = 8.9
+mean_RIN	Buccal swab	2.5			buccal mean RIN = 2.5
+mean_RIN	Saliva	2.6			saliva mean RIN = 2.6
+mean_TIN	Buccal swab	39			buccal mean TIN = 39
+mean_TIN	Saliva	30			saliva mean TIN = 30
+illumina_preseq_qc	Buccal swab		12	16	12 of 16 buccal samples fail pre-sequencing checks for the Illumina kit
+illumina_preseq_qc	Urine cell pellet		8	16	8 of 16 urine ... samples fail pre-sequencing checks for the Illumina kit
+illumina_preseq_qc	Saliva		16	16	few samples passing our thresholds (0/16 Illumina, 43/90 Loseq, and 8/12 of Smartseq pass QC)
+omim_capture_percent	Hair follicles	80			captured a median of 80% (hair), 70% (urine), and 55% (buccal) of genes above a 0.1 TPM threshold
+omim_capture_percent	Urine cell pellet	70			captured a median of 80% (hair), 70% (urine), and 55% (buccal) of genes above a 0.1 TPM threshold
+omim_capture_percent	Buccal swab	55			captured a median of 80% (hair), 70% (urine), and 55% (buccal) of genes above a 0.1 TPM threshold

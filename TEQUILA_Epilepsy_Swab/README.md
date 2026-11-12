@@ -195,6 +195,14 @@ LOCAL=1 bash 10_slides.sh
 
 The deck is `results/slides/TEQUILA_Epilepsy_Swab_pilot.pptx`.
 
+The deck also has public-data slides from `scripts/public_data_figures.py`. Their inputs are committed in
+`public_data/`, so no internet is needed:
+- GTEx v10 and Human Protein Atlas expression of both genes;
+- swab RNA quality from Martorella et al., BMC Genomics 2023: RIN, library QC failures and OMIM gene capture.
+
+To add this pilot's RIN values to that figure and slide, put a `rin.tsv` (columns `sample_id`, `RIN`) in this folder
+and run step 10 again.
+
 ### Folder layout on scratch
 
 ```
