@@ -162,6 +162,39 @@ cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy
 LOCAL=1 bash 09_gene_figures.sh
 ```
 
+### Step 7. Slide deck
+
+`10_slides.sh` runs after step 6. It makes the figures of the TEQUILA-seq progress-deck style
+(`scripts/deck_figures.py`), then puts them and the step 6 figures into one PowerPoint file
+(`scripts/make_slides.py`). The new figures, in `results/figures/deck/`, are:
+
+- **reads per sample**: sequencing reads per sample, sorted;
+- **gene model**: the canonical (MANE) transcript of each gene;
+- **isoform fraction**: gene abundance (CPM) above isoform fractions (%), with the isoform structures;
+- **isoform category**: the same, grouped by open reading frame:
+  - canonical;
+  - protein coding;
+  - premature termination codon (stop codon more than 50 nt before the last exon-exon junction);
+  - incomplete ORF;
+- **splicing events**: sashimi plots and inclusion (or splice-site usage) levels per sample. Events are cassette
+  exons and alternative 3'/5' splice sites, found from the gene-filtered reads.
+
+As in the progress decks:
+- isoforms are shown individually when, in at least one sample, they reach a fraction of 5% or more of at least
+  20 gene reads and have at least 3 reads;
+- inclusion levels need at least 20 reads in the denominator.
+
+Every number in a slide title or bullet is computed from the result tables when the deck is built. Isoforms come
+from the first available of ESPRESSO_fast, AMALGAM_full, AMALGAM_fast or ESPRESSO_full. The first run installs
+`python-pptx` into the analysis environment.
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+LOCAL=1 bash 10_slides.sh
+```
+
+The deck is `results/slides/TEQUILA_Epilepsy_Swab_pilot.pptx`.
+
 ### Folder layout on scratch
 
 ```
@@ -177,6 +210,8 @@ LOCAL=1 bash 09_gene_figures.sh
     fragmentation/fast/ and full/   detection + fragmentation report and figures
     <GENE>/<METHOD>/                isoform reports (ESPRESSO / AMALGAM, fast / full)
     figures/                        figure1/2 (pdf, png, data), kit_comparison.tsv, read_filter.tsv
+    figures/deck/                   progress-deck style figures and tables (step 10)
+    slides/                         TEQUILA_Epilepsy_Swab_pilot.pptx (step 10)
     figures/<GENE>/                 coverage and isoform figures (pdf, png, data tables) and igv/ pages per sample
   logs/                 one .out/.err per SLURM job (job names start with epi_)
 /scr1/users/wangf3/TEQUILA_references/   GRCh38, GENCODE v49, minimap2 index
