@@ -4,7 +4,8 @@
 Figure 1  Sequencing and detection
   a  reads sequenced per sample (bars) and mean read length (number above)
   b  read filtering per gene: reads at the locus kept for the gene vs removed, per sample
-  c  detection: reads per million sequenced reads on each gene, Zymo vs Genotek, one line per donor
+  c  detection: gene reads per million sequenced reads, Zymo vs Genotek, one line per donor
+  d  the same for spliced gene reads only (reads that are certainly mRNA, not pre-mRNA or genomic DNA)
 Figure 2  RNA integrity at the target genes
   a  gene-body coverage along the canonical transcript, 5' -> 3' (thin: samples; thick: kit mean)
   b  transcript coverage of each read: fraction of reads covering at least x of the transcript, per kit
@@ -137,7 +138,7 @@ def main():
     # ------------------------------------------------------------------ Figure 1
     W = NATURE_W_IN
     fig = plt.figure(figsize=(W, 2.5 + 0.0))
-    gs = fig.add_gridspec(1, 2 + len(genes), width_ratios=[1.3, 1.6] + [0.75] * len(genes), wspace=0.55,
+    gs = fig.add_gridspec(1, 2 + 2 * len(genes), width_ratios=[1.3, 1.6] + [0.62] * (2 * len(genes)), wspace=0.6,
                           left=0.07, right=0.98, bottom=0.27, top=0.88)
     ax = fig.add_subplot(gs[0, 0])
     x = np.arange(len(samples))
@@ -152,7 +153,7 @@ def main():
     ax.set_xticklabels(samples, rotation=60, ha="right")
     ax.set_ylabel("reads sequenced (millions)")
     ax.set_ylim(0, max(vals) * 1.25)
-    ax.set_title("number above bar = mean read length (nt)", fontsize=5, loc="left")
+    ax.set_title("number above bar:\nmean read length (nt)", fontsize=5, loc="left")
     theme(ax)
     letter(ax, "a")
 
@@ -176,34 +177,39 @@ def main():
     theme(ax)
     letter(ax, "b")
 
-    for gi, gene in enumerate(genes):
-        ax = fig.add_subplot(gs[0, 2 + gi])
-        rpm = {s: 1e6 * int(filt.get((gene, s), {}).get("kept", 0)) / reads_total[s]
-               for s in samples if reads_total[s]}
-        pairs = paired_rows(rpm, samples, meta, kits)
-        for d, (a, b) in pairs.items():
-            if a is not None and b is not None:
-                ax.plot([0, 1], [a, b], color="#7F7F7F", lw=0.6, zorder=1)
-                ax.text(1.08, b, d, fontsize=5, va="center")
-        for s, v in rpm.items():
-            ax.scatter(kits.index(meta[s]["condition"]), v, s=14, color=color[meta[s]["condition"]], zorder=2, lw=0)
-            data1.append(("c", s, "{}_reads_per_million".format(gene), round(v, 3)))
-        ax.set_yscale("log")
-        ax.yaxis.set_major_locator(matplotlib.ticker.LogLocator(base=10, subs=(1, 2, 5)))
-        ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: "{:g}".format(v)))
-        ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
-        if rpm:
-            ax.set_ylim(min(rpm.values()) / 1.6, max(rpm.values()) * 1.6)
-        ax.set_xticks([0, 1])
-        ax.set_xticklabels(kits[:2])
-        ax.set_xlim(-0.4, 1.4)
-        ax.set_title(gene, fontstyle="italic")
-        if gi == 0:
-            ax.set_ylabel("reads per million sequenced")
-        theme(ax)
-        if gi == 0:
-            letter(ax, "c", dx=-0.55)
-        comparisons.append(compare("reads_per_million", gene, pairs, kits))
+    # c: all gene reads per million; d: spliced gene reads per million (reads that are certainly mRNA)
+    panels = [("kept", "reads per million sequenced", "c", "reads_per_million"),
+              ("spliced_kept", "spliced reads per million", "d", "spliced_reads_per_million")]
+    for pi, (col, ylabel, panel, measure) in enumerate(panels):
+        for gi, gene in enumerate(genes):
+            ax = fig.add_subplot(gs[0, 2 + pi * len(genes) + gi])
+            rpm = {s: 1e6 * int(filt.get((gene, s), {}).get(col, 0)) / reads_total[s]
+                   for s in samples if reads_total[s]}
+            pairs = paired_rows(rpm, samples, meta, kits)
+            for d, (a, b) in pairs.items():
+                if a is not None and b is not None:
+                    ax.plot([0, 1], [a, b], color="#7F7F7F", lw=0.6, zorder=1)
+                    ax.text(1.08, b, d, fontsize=5, va="center")
+            for s, v in rpm.items():
+                ax.scatter(kits.index(meta[s]["condition"]), v, s=14, color=color[meta[s]["condition"]], zorder=2,
+                           lw=0)
+                data1.append((panel, s, "{}_{}".format(gene, measure), round(v, 3)))
+            positive = [v for v in rpm.values() if v > 0]
+            if positive:
+                ax.set_yscale("log")
+                ax.yaxis.set_major_locator(matplotlib.ticker.LogLocator(base=10, subs=(1, 2, 5)))
+                ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: "{:g}".format(v)))
+                ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+                ax.set_ylim(min(positive) / 1.6, max(positive) * 1.6)
+            ax.set_xticks([0, 1])
+            ax.set_xticklabels(kits[:2], rotation=45, ha="right")
+            ax.set_xlim(-0.4, 1.4)
+            ax.set_title(gene, fontstyle="italic")
+            if gi == 0:
+                ax.set_ylabel(ylabel)
+                letter(ax, panel, dx=-0.75)
+            theme(ax)
+            comparisons.append(compare(measure, gene, pairs, kits))
     fig.savefig(os.path.join(args.outdir, "figure1.pdf"))
     fig.savefig(os.path.join(args.outdir, "figure1.png"), dpi=300)
     plt.close(fig)
