@@ -5,6 +5,9 @@
 #                  -> 08 reports (also picks up the fast-path results)
 # Run 00_setup.sh first. Skip step 01 if it already ran: SKIP_FASTQ=1
 # Leave out the genome-wide AMALGAM run: SKIP_AMALGAM_FULL=1
+# Leave out ESPRESSO on all reads: SKIP_ESPRESSO_FULL=1. This needs the genome-wide
+# alignments of an earlier run (pipeline/alignment/*/*/aligned.sorted.sam); QC and
+# AMALGAM then start from them.
 set -euo pipefail
 _D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_D}/lib.sh"
@@ -13,7 +16,14 @@ after="${FASTQ_JOB:-}"   # set by run_all.sh, which submits step 01 once for bot
 if [[ -z "${after}" && "${SKIP_FASTQ:-0}" != "1" ]]; then
   after=$(job_id "$(bash "${_D}/01_prepare_fastq.sh")")
 fi
-j_full=$(job_id "$(AFTER="${after}" bash "${_D}/06_espresso_full.sh")")
+if [[ "${SKIP_ESPRESSO_FULL:-0}" == "1" ]]; then
+  n_sam=$(ls "${PIPELINE_DIR}"/alignment/*/*/aligned.sorted.sam 2>/dev/null | wc -l)
+  (( n_sam > 0 )) || { echo "SKIP_ESPRESSO_FULL=1 needs earlier alignments in ${PIPELINE_DIR}/alignment" >&2; exit 1; }
+  echo "skipping ESPRESSO on all reads; using ${n_sam} existing alignments" >&2
+  j_full="${after}"
+else
+  j_full=$(job_id "$(AFTER="${after}" bash "${_D}/06_espresso_full.sh")")
+fi
 j_qc=$(job_id "$(AFTER="${j_full}" bash "${_D}/07_qc_full.sh")")
 last="${j_qc}"
 if [[ "${SKIP_AMALGAM_FULL:-0}" != "1" ]]; then
