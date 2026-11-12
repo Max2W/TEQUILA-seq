@@ -127,6 +127,27 @@ cat results/STXBP1/ESPRESSO_fast/STXBP1_ESPRESSO_fast_report.md
 cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
 ```
 
+### Step 6. Gene figures
+
+`09_gene_figures.sh` draws, from the fast-path gene BAMs:
+- **One figure per gene** (`scripts/gene_figure.py`), styled after the shared STRIPE-style kit: 183 mm wide,
+  7-pt text, the STRIPE palette and STRIPE's intron shrinking. Its panels are:
+  - **a** a sashimi plot per sample above the canonical gene model;
+  - **b** IGV-style reads, up to 25 per sample, with full-length reads drawn darker;
+  - **c** 5'->3' coverage along the canonical transcript;
+  - **d** spliced and unspliced reads per sample, with the full-length count above each bar.
+- **IGV-style pages** (`scripts/igv_plot.py`) for each gene and sample over the whole gene, once with all reads
+  and once with spliced reads only.
+
+The work is light, so it runs here on the login node in a few minutes:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+LOCAL=1 bash 09_gene_figures.sh
+```
+
+The output goes to `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/results/figures/<GENE>/`.
+
 ### Folder layout on scratch
 
 ```
@@ -141,6 +162,7 @@ cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
   results/
     fragmentation/fast/ and full/   detection + fragmentation report and figures
     <GENE>/<METHOD>/                isoform reports (ESPRESSO / AMALGAM, fast / full)
+    figures/<GENE>/                 gene figure (pdf, png, data tsv) and igv/ pages per sample
   logs/                 one .out/.err per SLURM job (job names start with epi_)
 /scr1/users/wangf3/TEQUILA_references/   GRCh38, GENCODE v49, minimap2 index
 ```
