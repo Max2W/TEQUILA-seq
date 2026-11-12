@@ -4,8 +4,12 @@
 #      -> ${FAST_DIR}/bam_filtered/<GENE>/<sample>.bam, ${RESULTS_DIR}/figures/read_filter.tsv
 #   2. detection + fragmentation on the filtered reads (scripts/fragment_report.py)
 #      -> ${RESULTS_DIR}/fragmentation/filtered/
-#   3. one STRIPE / Nature-style figure per gene (scripts/gene_figure.py), filtered reads
-#      -> ${RESULTS_DIR}/figures/<GENE>/<GENE>_figure.{pdf,png} (Figures 3, 4)
+#   3. per gene, in the usual isoform / RNA-seq figure styles -> ${RESULTS_DIR}/figures/<GENE>/
+#      - scripts/coverage_plot.py (filtered reads): overlaid coverage lines (all / spliced reads) on the
+#        intron-shortened canonical transcript, and IGV-style coverage tracks per sample (all / spliced)
+#      - scripts/isoform_abundance_plot.py, for each isoform quantification that exists (ESPRESSO_fast,
+#        AMALGAM_fast, AMALGAM_full, ESPRESSO_full): isoform CPM stacked bars by donor with the isoform
+#        structures below, and as one panel
 #   4. IGV-style pages per gene and sample (scripts/igv_plot.py), filtered reads, only the gene of
 #      interest annotated; all reads and spliced reads only -> ${RESULTS_DIR}/figures/<GENE>/igv/
 #   5. Figures 1-2 and the paired kit comparison (scripts/pub_figures.py) -> ${RESULTS_DIR}/figures/
@@ -67,10 +71,26 @@ python "${ANALYSIS_DIR}/scripts/fragment_report.py" --genes "${genes_csv}" --gtf
 
 for gene in "${TARGET_GENES[@]}"; do
   out="${FIG}/${gene}"
-  # 3. gene figure
-  echo "[figures] ${gene}: gene figure"
-  python "${ANALYSIS_DIR}/scripts/gene_figure.py" --gene "${gene}" --gtf "${GTF}" \
+  # 3. coverage figures and isoform abundance figures
+  echo "[figures] ${gene}: coverage figures"
+  python "${ANALYSIS_DIR}/scripts/coverage_plot.py" --gene "${gene}" --gtf "${GTF}" \
     --sample-sheet "${SAMPLE_SHEET}" --bam-pattern "${FILTERED}/{gene}/{sample}.bam" --outdir "${out}"
+  wd="espresso_out/work_dir"
+  while read -r method matrix iso_gtf; do
+    if [[ ! -s "${matrix}" || ! -s "${iso_gtf}" ]]; then
+      echo "[figures] ${gene}: ${method} isoforms not available, skipped"
+      continue
+    fi
+    python "${ANALYSIS_DIR}/scripts/isoform_abundance_plot.py" --gene "${gene}" --method "${method}" \
+      --matrix "${matrix}" --isoform-gtf "${iso_gtf}" --ref-gtf "${GTF}" --sample-sheet "${SAMPLE_SHEET}" \
+      --read-counts "${QC_DIR}/fastq_read_counts.tsv" --outdir "${out}" < /dev/null \
+      || echo "[figures] ${gene}: ${method} isoform figure failed (see the message above)"
+  done <<EOF_METHODS
+ESPRESSO_fast ${FAST_DIR}/espresso/${gene}/${wd}/samples_N2_R0_abundance.esp ${FAST_DIR}/espresso/${gene}/${wd}/samples_N2_R0_updated.gtf
+AMALGAM_fast ${FAST_DIR}/amalgam/${gene}/amalgam_counts_matrix.tsv ${FAST_DIR}/amalgam/${gene}/amalgam.transcripts.gtf
+AMALGAM_full ${PROJECT_DIR}/amalgam_full/amalgam_counts_matrix.tsv ${PROJECT_DIR}/amalgam_full/amalgam.transcripts.gtf
+ESPRESSO_full ${PIPELINE_DIR}/${wd}/samples_N2_R0_abundance.esp ${PIPELINE_DIR}/${wd}/samples_N2_R0_updated.gtf
+EOF_METHODS
 
   # 4. IGV-style pages: only the gene of interest is annotated
   read -r chrom start end < <(awk -F'\t' -v g="${gene}" \

@@ -137,8 +137,19 @@ cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
 
    The kept reads go to `fast/bam_filtered/`, and the numbers per sample to `results/figures/read_filter.tsv`.
 2. **Detection and fragmentation** on the filtered reads, written to `results/fragmentation/filtered/`.
-3. **Figures 3 and 4**: one STRIPE-style figure per gene (`scripts/gene_figure.py`), in
-   `results/figures/<GENE>/`.
+3. **Coverage and isoform figures** per gene, in `results/figures/<GENE>/`:
+   - `scripts/coverage_plot.py` (filtered reads):
+     - `<GENE>_coverage_lines`: one coverage line per sample, all reads (top) and spliced reads (bottom), on the
+       canonical transcript with introns shortened; Zymo in blues, Genotek in reds, one shade per donor;
+     - `<GENE>_coverage_tracks` and `_tracks_spliced`: IGV-style, one track per sample with its own `[0 - max]`
+       scale, one colour per donor, genomic coordinates.
+   - `scripts/isoform_abundance_plot.py`, for each isoform quantification that exists (ESPRESSO_fast,
+     AMALGAM_fast, AMALGAM_full, ESPRESSO_full). CPM = isoform reads per million reads sequenced; the 4 most
+     abundant isoforms are drawn and the rest summed as "Other":
+     - `<GENE>_<METHOD>_isoform_abundance_by_donor`: one panel per donor, one bar per kit, isoform structures below;
+     - `<GENE>_<METHOD>_isoform_abundance`: all samples in one panel.
+
+   Every drawn number is also written to a table (`*_isoform_abundance.tsv`, `<GENE>_coverage.tsv.gz`).
 4. **IGV-style pages** (`scripts/igv_plot.py`) per gene and sample, with filtered reads and only the gene of
    interest annotated, in `results/figures/<GENE>/igv/`.
 5. **Figures 1 and 2** (`scripts/pub_figures.py`) and `kit_comparison.tsv`, which compares Genotek with Zymo,
@@ -166,7 +177,7 @@ LOCAL=1 bash 09_gene_figures.sh
     fragmentation/fast/ and full/   detection + fragmentation report and figures
     <GENE>/<METHOD>/                isoform reports (ESPRESSO / AMALGAM, fast / full)
     figures/                        figure1/2 (pdf, png, data), kit_comparison.tsv, read_filter.tsv
-    figures/<GENE>/                 gene figure (Figure 3/4: pdf, png, data tsv) and igv/ pages per sample
+    figures/<GENE>/                 coverage and isoform figures (pdf, png, data tables) and igv/ pages per sample
   logs/                 one .out/.err per SLURM job (job names start with epi_)
 /scr1/users/wangf3/TEQUILA_references/   GRCh38, GENCODE v49, minimap2 index
 ```
