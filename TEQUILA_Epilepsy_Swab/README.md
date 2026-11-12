@@ -127,17 +127,22 @@ cat results/STXBP1/ESPRESSO_fast/STXBP1_ESPRESSO_fast_report.md
 cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
 ```
 
-### Step 6. Gene figures
+### Step 6. Gene read filter and publication figures
 
-`09_gene_figures.sh` draws, from the fast-path gene BAMs:
-- **One figure per gene** (`scripts/gene_figure.py`), styled after the shared STRIPE-style kit: 183 mm wide,
-  7-pt text, the STRIPE palette and STRIPE's intron shrinking. Its panels are:
-  - **a** a sashimi plot per sample above the canonical gene model;
-  - **b** IGV-style reads, up to 25 per sample, with full-length reads drawn darker;
-  - **c** 5'->3' coverage along the canonical transcript;
-  - **d** spliced and unspliced reads per sample, with the full-length count above each bar.
-- **IGV-style pages** (`scripts/igv_plot.py`) for each gene and sample over the whole gene, once with all reads
-  and once with spliced reads only.
+`09_gene_figures.sh` runs these steps in order, using the fast-path gene BAMs:
+1. **Gene read filter** (`scripts/gene_read_filter.py`). A read is kept for a gene only if it meets all of these:
+   - at least 50% of its aligned bases lie on the gene's exons;
+   - it has more bases on this gene's exons than on any other gene's;
+   - if spliced, its transcript strand (minimap2 `ts`) is the gene's strand.
+
+   The kept reads go to `fast/bam_filtered/`, and the numbers per sample to `results/figures/read_filter.tsv`.
+2. **Detection and fragmentation** on the filtered reads, written to `results/fragmentation/filtered/`.
+3. **Figures 3 and 4**: one STRIPE-style figure per gene (`scripts/gene_figure.py`), in
+   `results/figures/<GENE>/`.
+4. **IGV-style pages** (`scripts/igv_plot.py`) per gene and sample, with filtered reads and only the gene of
+   interest annotated, in `results/figures/<GENE>/igv/`.
+5. **Figures 1 and 2** (`scripts/pub_figures.py`) and `kit_comparison.tsv`, which compares Genotek with Zymo,
+   paired by donor.
 
 The work is light, so it runs here on the login node in a few minutes:
 
@@ -145,8 +150,6 @@ The work is light, so it runs here on the login node in a few minutes:
 cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
 LOCAL=1 bash 09_gene_figures.sh
 ```
-
-The output goes to `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/results/figures/<GENE>/`.
 
 ### Folder layout on scratch
 
@@ -162,7 +165,8 @@ The output goes to `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/results/figures/<GE
   results/
     fragmentation/fast/ and full/   detection + fragmentation report and figures
     <GENE>/<METHOD>/                isoform reports (ESPRESSO / AMALGAM, fast / full)
-    figures/<GENE>/                 gene figure (pdf, png, data tsv) and igv/ pages per sample
+    figures/                        figure1/2 (pdf, png, data), kit_comparison.tsv, read_filter.tsv
+    figures/<GENE>/                 gene figure (Figure 3/4: pdf, png, data tsv) and igv/ pages per sample
   logs/                 one .out/.err per SLURM job (job names start with epi_)
 /scr1/users/wangf3/TEQUILA_references/   GRCh38, GENCODE v49, minimap2 index
 ```
