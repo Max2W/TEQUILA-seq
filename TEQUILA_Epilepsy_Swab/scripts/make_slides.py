@@ -110,6 +110,27 @@ class Deck:
             self.runs(p, title, size, bold=True)
         return s
 
+    def divider(self, text, sub=None):
+        s = self.prs.slides.add_slide(self.blank)
+        tb = s.shapes.add_textbox(Inches(1), Inches(2.6), Inches(SW - 2), Inches(2.0))
+        tf = tb.text_frame
+        tf.word_wrap, tf.vertical_anchor = True, MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        self.runs(p, text, 36, bold=True)
+        if sub:
+            p = tf.add_paragraph()
+            p.alignment = PP_ALIGN.CENTER
+            p.space_before = Pt(14)
+            self.runs(p, sub, 18, color=GREY)
+        return s
+
+    def caption(self, s, text, x, y, w, size=16):
+        tb = s.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(0.4))
+        p = tb.text_frame.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        self.runs(p, text, size, bold=True)
+
     def picture(self, s, path, x, y, w, h):
         px, py = Image.from_file(path).size
         scale = min(w / px, h / py)
@@ -276,19 +297,7 @@ def main():
             D.bullets(s, bg["left"], 0.5, 3.4, 6.2, 3.0, size=16)
             D.bullets(s, bg["right"], 6.9, 1.6, 6.0, 4.9, size=16)
             D.note(s, bg["refs"], size=12)
-        add_gene_slides(D, g, fig, deck_dir, samples)
-
-    # appendix: the earlier isoform CPM figures
-    for g in genes:
-        for name in sorted(os.listdir(os.path.join(fig, g))) if os.path.isdir(os.path.join(fig, g)) else []:
-            m = re.match(r"{}_(\w+)_isoform_abundance(_by_donor)?\.png$".format(g), name)
-            if not m:
-                continue
-            s = D.slide("{} isoform abundance (CPM), {}{}".format(
-                g, m.group(1).replace("_", " "), ", by donor" if m.group(2) else ""), size=26)
-            D.picture(s, os.path.join(fig, g, name), 0.5, 1.45, SW - 1.0, 5.5)
-            D.note(s, "Isoform abundance = isoform reads per million reads sequenced; the 4 most abundant isoforms "
-                      "are shown, all others are summed as Other", size=11)
+        add_gene_slides(D, g, fig, deck_dir, samples, sheet)
 
     # summary
     s = D.slide("Summary")
@@ -308,11 +317,51 @@ def main():
               "Open question: was DNase treatment used for each kit? Unspliced reads may include genomic DNA"]
     D.bullets(s, items, 0.8, 1.6, SW - 1.6, 5.4, size=18)
 
+    # appendix: the earlier isoform CPM figures
+    cpm_figs = []
+    for g in genes:
+        for name in sorted(os.listdir(os.path.join(fig, g))) if os.path.isdir(os.path.join(fig, g)) else []:
+            m = re.match(r"{}_(\w+)_isoform_abundance(_by_donor)?\.png$".format(g), name)
+            if m:
+                cpm_figs.append((g, name, m))
+    if cpm_figs:
+        D.divider("Appendix: isoform abundance (CPM)")
+    for g, name, m in cpm_figs:
+        s = D.slide("{} isoform abundance (CPM), {}{}".format(
+            g, m.group(1).replace("_", " "), ", by donor" if m.group(2) else ""), size=26)
+        D.picture(s, os.path.join(fig, g, name), 0.5, 1.45, SW - 1.0, 5.5)
+        D.note(s, "Isoform abundance = isoform reads per million reads sequenced; the 4 most abundant isoforms "
+                  "are shown, all others are summed as Other", size=11)
+
+    results = os.path.dirname(os.path.abspath(fig))
+    report_figs = {"structure_heatmap": "isoform structures and proportions",
+                   "stacked_proportions": "isoform proportions per sample",
+                   "isoform_by_donor": "isoform proportions by donor",
+                   "gene_reads": "reads assigned to the gene"}
+    blocks = []
+    for g in genes:
+        gres = os.path.join(results, g)
+        for method in sorted(os.listdir(gres)) if os.path.isdir(gres) else []:
+            for key, what in report_figs.items():
+                q = os.path.join(gres, method, "{}_{}_{}.png".format(g, method, key))
+                if os.path.exists(q):
+                    blocks.append(("{} isoform report ({}): {}".format(g, method.replace("_", " "), what), q))
+    frag = os.path.join(results, "fragmentation", "filtered")
+    frag_figs = [("{} fragmentation (gene-filtered reads)".format(g), os.path.join(frag, "{}_fragmentation.png".format(g)))
+                 for g in genes] + [("Detection and full-length reads, all genes and swabs",
+                                     os.path.join(frag, "overview.png"))]
+    frag_figs = [(t, q) for t, q in frag_figs if os.path.exists(q)]
+    if blocks or frag_figs:
+        D.divider("Appendix: isoform and fragmentation reports")
+    for t, q in blocks + frag_figs:
+        s = D.slide(t, size=26)
+        D.picture(s, q, 0.5, 1.45, SW - 1.0, 5.5)
+
     D.prs.save(args.out)
     print("{} slides -> {}".format(len(D.prs.slides), args.out))
 
 
-def add_gene_slides(D, g, fig, deck_dir, samples):
+def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
     gdir = os.path.join(fig, g)
     p = os.path.join(gdir, "{}_coverage_lines.png".format(g))
     if os.path.exists(p):
@@ -384,6 +433,34 @@ def add_gene_slides(D, g, fig, deck_dir, samples):
                       "Exon inclusion" if is_ce else "Splice site usage",
                       "inclusion junction" if is_ce else "alternative junction",
                       "inclusion or skipping junction" if is_ce else "alternative or canonical junction"), size=11)
+
+    p = os.path.join(gdir, "{}_figure.png".format(g))
+    if os.path.exists(p):
+        s = D.slide("{} sashimi plots, reads and coverage per swab".format(g))
+        D.picture(s, p, 0.4, 1.4, 6.6, 5.7)
+        D.bullets(s, ["a  Sashimi plot per swab: coverage and junction arcs with their read counts (arcs below the "
+                      "per-swab floor are hidden)",
+                      "b  IGV-style reads, 25 per swab; full-length reads darker",
+                      "c  Gene-body coverage along the canonical transcript, 5' to 3'",
+                      "d  Reads on canonical exons, spliced and unspliced; the number above each bar is the count of "
+                      "full-length reads"], 7.3, 1.7, 5.6, 5.0, size=15)
+        D.note(s, "Gene-filtered reads; canonical (MANE) gene model; introns shortened", size=11)
+    kits = list(dict.fromkeys(r["condition"] for r in sheet))
+    by = {(r["donor"], r["condition"]): r["sample_id"] for r in sheet}
+    for d in dict.fromkeys(r["donor"] for r in sheet):
+        for kind, what in (("all_reads", "all gene-filtered reads"), ("spliced_reads", "spliced reads only")):
+            pics = [(k, os.path.join(gdir, "igv", "{}_{}_{}.png".format(g, by[(d, k)], kind)))
+                    for k in kits if (d, k) in by]
+            pics = [(k, q) for k, q in pics if os.path.exists(q)]
+            if not pics:
+                continue
+            s = D.slide("{} IGV view, donor {}: {}".format(g, d, what), size=28)
+            w = (SW - 0.6 - 0.2 * (len(pics) - 1)) / len(pics)
+            for i, (k, q) in enumerate(pics):
+                x = 0.3 + i * (w + 0.2)
+                D.caption(s, k, x, 1.4, w)
+                D.picture(s, q, x, 1.85, w, 4.9)
+            D.note(s, "Gene-filtered reads; only {} annotated".format(g), size=11)
 
 
 if __name__ == "__main__":

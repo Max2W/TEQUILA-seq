@@ -380,6 +380,7 @@ def plot_all(args, isoforms, plot_ids, labels, props, counts, gene_total, sheet,
     ax.spines[['top', 'right']].set_visible(False)
     fig.tight_layout()
     fig.savefig(prefix + '_stacked_proportions.pdf')
+    fig.savefig(prefix + '_stacked_proportions.png', dpi=200)
     plt.close(fig)
 
     # 3. per-isoform donor plots
@@ -416,6 +417,7 @@ def plot_all(args, isoforms, plot_ids, labels, props, counts, gene_total, sheet,
     fig.legend(handles, names, loc='upper right', fontsize=6, frameon=False)
     fig.tight_layout()
     fig.savefig(prefix + '_isoform_by_donor.pdf')
+    fig.savefig(prefix + '_isoform_by_donor.png', dpi=200)
     plt.close(fig)
 
     # 4. gene depth
@@ -429,6 +431,7 @@ def plot_all(args, isoforms, plot_ids, labels, props, counts, gene_total, sheet,
     ax.spines[['top', 'right']].set_visible(False)
     fig.tight_layout()
     fig.savefig(prefix + '_gene_reads.pdf')
+    fig.savefig(prefix + '_gene_reads.png', dpi=200)
     plt.close(fig)
 
 
