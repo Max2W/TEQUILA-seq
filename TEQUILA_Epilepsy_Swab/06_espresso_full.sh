@@ -16,6 +16,17 @@ source "${_D}/lib.sh"
 [[ -x "${CONDA_WRAPPER}" ]] || { echo "missing ${CONDA_WRAPPER}: run 00_setup.sh" >&2; exit 1; }
 [[ -L "${PIPELINE_DIR}/Snakefile" ]] || { echo "pipeline dir not set up: run 00_setup.sh pipeline" >&2; exit 1; }
 
+# ESPRESSO on all reads needs much more memory than the 64 GB default (the swab
+# run was killed at 64 GB). Ask for ESPRESSO_MEM_GB, capped at 90% of the largest
+# node in the partition so the job can be scheduled at all.
+ESPRESSO_MEM_GB="${ESPRESSO_MEM_GB:-192}"
+ESPRESSO_THREADS="${ESPRESSO_THREADS:-8}"
+largest_mb=$(sinfo -h -o "%m" 2>/dev/null | tr -d '+' | sort -n | tail -1 || true)
+if [[ "${largest_mb}" =~ ^[0-9]+$ ]] && (( largest_mb > 0 )); then
+  cap_gb=$(( largest_mb * 9 / 10 / 1024 ))
+  if (( ESPRESSO_MEM_GB > cap_gb )); then ESPRESSO_MEM_GB="${cap_gb}"; fi
+fi
+
 make_config() {
   local fc_labels=() entry
   for entry in "${FLOWCELLS[@]}"; do fc_labels+=("${entry%%:*}"); done
@@ -24,7 +35,7 @@ make_config() {
     --flowcells "$(IFS=,; echo "${fc_labels[*]}")" \
     --read-counts "${QC_DIR}/fastq_read_counts.tsv" --min-reads 1 \
     --code-dir "${CODE_DIR}" --conda-wrapper "${CONDA_WRAPPER}" --gtf-name "${GTF_NAME}" --fasta-name "${FASTA_NAME}" \
-    --threads 16 \
+    --threads 16 --espresso-threads "${ESPRESSO_THREADS}" --espresso-mem-gb "${ESPRESSO_MEM_GB}" \
     --out "${PIPELINE_DIR}/snakemake_config.yaml" --index-out "${PIPELINE_DIR}/input_index.tsv" >&2
 }
 
@@ -44,4 +55,6 @@ fi
 
 make_config
 cd "${PIPELINE_DIR}"
-"${CONDA_WRAPPER}" snakemake --profile ./snakemake_profile
+echo "[full] ESPRESSO jobs: ${ESPRESSO_MEM_GB} GB, ${ESPRESSO_THREADS} threads"
+# --rerun-incomplete: redo outputs left behind by a job that was killed
+"${CONDA_WRAPPER}" snakemake --profile ./snakemake_profile --rerun-incomplete

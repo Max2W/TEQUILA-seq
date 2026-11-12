@@ -19,13 +19,13 @@ guppy_time_hr: 1
 minimap2_threads: {threads}
 minimap2_mem_gb: 48
 minimap2_time_hr: 24
-espresso_s_threads: {threads}
-espresso_s_mem_gb: 64
+espresso_s_threads: {espresso_threads}
+espresso_s_mem_gb: {espresso_mem}
 espresso_s_time_hr: 48
-espresso_c_threads: {threads}
-espresso_c_mem_gb: 64
+espresso_c_threads: {espresso_threads}
+espresso_c_mem_gb: {espresso_mem}
 espresso_c_time_hr: 48
-espresso_q_mem_gb: 64
+espresso_q_mem_gb: {espresso_mem}
 espresso_q_time_hr: 48
 visualize_mem_gb: 40
 # Command options
@@ -65,7 +65,10 @@ def main():
     parser.add_argument('--skip-samples', default='',
                         help='comma separated sample ids to leave out (e.g. no reads)')
     parser.add_argument('--threads', type=int, default=8,
-                        help='threads for minimap2 / ESPRESSO jobs')
+                        help='threads for minimap2 jobs (and ESPRESSO unless --espresso-threads)')
+    parser.add_argument('--espresso-threads', type=int, help='threads for ESPRESSO S / C')
+    parser.add_argument('--espresso-mem-gb', type=int, default=64,
+                        help='memory for each ESPRESSO S / C / Q job')
     parser.add_argument('--code-dir', required=True)
     parser.add_argument('--gtf-name', required=True)
     parser.add_argument('--fasta-name', required=True)
@@ -95,6 +98,8 @@ def main():
 
     lines = [TEMPLATE.format(
         threads=args.threads,
+        espresso_threads=args.espresso_threads or args.threads,
+        espresso_mem=args.espresso_mem_gb,
         visualization_path=os.path.join(args.code_dir, 'visualization'),
         gtf_name=args.gtf_name,
         fasta_name=args.fasta_name,
