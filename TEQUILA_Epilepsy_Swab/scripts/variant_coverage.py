@@ -408,6 +408,11 @@ def main():
                     os.path.join(args.outdir, "variant_coverage_{}".format(g)))
     summary_figure([g for g in genes if g in models], variants, samples, kits_of,
                    os.path.join(args.outdir, "variant_coverage_summary"))
+    for g in genes:
+        vs = [v for v in variants if v["gene"] == g]
+        if vs:
+            print("{}: variants covered by >= 20 reads per swab: {}".format(g, ", ".join(
+                "{} {}".format(sm, sum(v["depth"][sm] >= 20 for v in vs)) for sm in samples)))
     mism = [v for v in variants if v["ref_check"].startswith("MISMATCH")]
     for g in genes:
         vs = [v for v in variants if v["gene"] == g]

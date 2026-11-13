@@ -19,6 +19,8 @@ from multiprocessing import Pool
 import pysam
 
 BIN = 100_000
+# panel symbols renamed by HGNC since the panel list was made (old -> current GENCODE gene_name)
+ALIASES = {"SPATA5": "AFG2A"}
 _BINS = _PANEL = _REPORT = None
 
 
@@ -110,7 +112,7 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     with open(args.sample_sheet) as fh:
         samples = [r["sample_id"] for r in csv.DictReader(fh, delimiter="\t")]
-    panel = [l.strip() for l in open(args.panel) if l.strip() and not l.startswith("#")]
+    panel = [ALIASES.get(l.strip(), l.strip()) for l in open(args.panel) if l.strip() and not l.startswith("#")]
     report = [g for g in args.report_genes.split(",") if g]
     genes = load_genes(args.gtf)
     names = {g[3] for g in genes}
