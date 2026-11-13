@@ -382,15 +382,23 @@ def full_path_slides(D, args, genes, samples, fast_filt):
     p = os.path.join(ff, "capture_qc.png")
     if os.path.exists(p):
         on = {g: [float(v) for v in vals[("on_target_percent", g)].values()] for g in genes}
-        s = D.slide("On-target rate: " + "; ".join("{} {} of all reads".format(g, fmt_range(on[g], 2, True))
+        s = D.slide("On-target rate: " + "; ".join("{} {} of all reads".format(g, fmt_range(on[g], 3, True))
                                                      for g in genes if on[g]), size=28)
         D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.6)
         mr = [float(v) for v in vals[("mapping_rate_percent", "")].values()]
         ml = [float(v) for v in vals[("median_read_length", "")].values()]
-        D.bullets(s, ["All reads aligned to the genome (minimap2, full path): {} mapped".format(fmt_range(mr, 0, True)),
-                      "Median read length {} nt".format(fmt_range(ml)),
-                      "On-target = reads overlapping the gene's annotated span, as % of all reads sequenced"],
-                  0.5, 5.15, SW - 1.0, 1.6, size=14)
+        inter = vals[("intergenic_percent_of_mapped", "")]
+        kit_of = {r["sample_id"]: r["condition"] for r in read_tsv(args.sample_sheet)}
+        by_kit = defaultdict(list)
+        for x, v in inter.items():
+            by_kit[kit_of.get(x, "")].append(float(v))
+        items = ["All reads aligned to the genome (minimap2, full path): {} mapped; median read length {} nt".format(
+                     fmt_range(mr, 0, True), fmt_range(ml)),
+                 "On-target = reads overlapping the gene's annotated span, as % of all reads sequenced"]
+        if inter:
+            items.append("Reads outside annotated genes: " + "; ".join(
+                "{} {}".format(k, fmt_range(v, 0, True)) for k, v in by_kit.items()) + " of mapped reads")
+        D.bullets(s, items, 0.5, 5.15, SW - 1.0, 1.6, size=14)
     p = os.path.join(ff, "top_genes.png")
     if os.path.exists(p):
         ranked = [r for r in read_tsv(os.path.join(ff, "full_path_figures.tsv"))
@@ -398,16 +406,24 @@ def full_path_slides(D, args, genes, samples, fast_filt):
         names = [r["gene"] for r in ranked]
         s = D.slide("Genes collecting the most reads across all swabs")
         D.picture(s, p, 0.4, 1.45, 7.6, 5.2)
+        targets = {r["gene"]: float(r["value"]) for r in read_tsv(os.path.join(ff, "full_path_figures.tsv"))
+                   if r["measure"] == "target_percent_of_mapped"}
+        pooled = [float(r["value"]) for r in read_tsv(os.path.join(ff, "full_path_figures.tsv"))
+                  if r["measure"] == "intergenic_percent_of_mapped_pooled"]
         items = []
+        if pooled:
+            items.append("{:.0f}% of mapped reads fall outside annotated genes".format(pooled[0]))
+        if ranked:
+            items.append("Most reads in one gene: {} ({:.1f}% of mapped reads)".format(names[0],
+                                                                                    float(ranked[0]["value"])))
         for g in genes:
             if g in names:
-                items.append("{}: rank {} ({:.2f}% of mapped reads)".format(
+                items.append("{}: rank {} ({:.3f}% of mapped reads)".format(
                     g, names.index(g) + 1, float(ranked[names.index(g)]["value"])))
-            else:
-                items.append("{}: not among the top {} genes".format(g, len(names)))
-        if ranked:
-            items.append("Most reads: {} ({:.1f}% of mapped reads)".format(names[0], float(ranked[0]["value"])))
-        items.append("A read is assigned to the gene containing its alignment midpoint")
+            elif g in targets:
+                items.append("{}: {:.3f}% of mapped reads, not among the top {} genes".format(g, targets[g],
+                                                                                             len(names)))
+        items.append("A read is assigned to the gene containing its alignment midpoint; ENSG IDs are unnamed genes")
         D.bullets(s, items, 8.3, 1.7, 4.7, 5.0, size=15)
     p = os.path.join(ff, "bait_recovery.png")
     if os.path.exists(p):

@@ -93,7 +93,7 @@ def qc_bam(job):
                 lengths.append(rec.query_length)
                 q = rec.query_qualities
                 if q is not None and len(q):
-                    err = np.power(10.0, -np.frombuffer(bytes(q), dtype=np.uint8) / 10.0).mean()
+                    err = np.power(10.0, -np.frombuffer(bytes(q), dtype=np.uint8).astype(float) / 10.0).mean()
                     quals.append(-10.0 * np.log10(err))
             if rec.is_unmapped:
                 continue
@@ -160,7 +160,7 @@ def main():
                         r['reads'], r['mapped'], '{:.4f}'.format(r['mapped'] / r['reads'] if r['reads'] else 0)]
                 for name in wanted:
                     n = r['targets'][name]
-                    vals += [n, '{:.4f}'.format(n / r['reads'] if r['reads'] else 0)]
+                    vals += [n, '{:.6f}'.format(n / r['reads'] if r['reads'] else 0)]
                 vals += ['{:.0f}'.format(r['median_length']), '{:.1f}'.format(r['median_q'])]
                 handle.write('\t'.join(str(v) for v in vals) + '\n')
 
