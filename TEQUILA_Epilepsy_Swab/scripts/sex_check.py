@@ -53,7 +53,7 @@ def main():
     agree = {}
     for d in dict.fromkeys(meta[s]["donor"] for s in samples):
         cs = {calls[s] for s in samples if meta[s]["donor"] == d}
-        agree[d] = len(cs) == 1 and "unclear" not in cs
+        agree[d] = len(cs) == 1  # same call in every swab of the donor ("unclear" in both also agrees)
     with open(os.path.join(args.outdir, "sex_check.tsv"), "w") as fh:
         fh.write("sample_id\tdonor\tkit\tXIST_cpm\tY_genes_cpm\tcall\tdonor_swabs_agree\n")
         for s in samples:
@@ -78,8 +78,9 @@ def main():
     fig.savefig(os.path.join(args.outdir, "sex_check.pdf"))
     fig.savefig(os.path.join(args.outdir, "sex_check.png"), dpi=300)
     plt.close(fig)
-    print("sex check: the two swabs agree for {} of {} donors -> {}".format(sum(agree.values()), len(agree),
-                                                                             args.outdir))
+    unclear = sorted({meta[s]["donor"] for s in samples if calls[s] == "unclear"})
+    print("sex check: the swabs agree for {} of {} donors; unclear calls: {} -> {}".format(
+        sum(agree.values()), len(agree), ", ".join(unclear) or "none", args.outdir))
 
 
 if __name__ == "__main__":

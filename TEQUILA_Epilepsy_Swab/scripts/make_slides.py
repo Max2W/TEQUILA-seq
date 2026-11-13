@@ -469,8 +469,10 @@ def sex_slide(D, args):
         return
     rows = read_tsv(os.path.join(sf, "sex_check.tsv"))
     donors = {r["donor"]: r["donor_swabs_agree"] == "True" for r in rows}
-    s = D.slide("Sample identity check: sex-marker expression agrees between the two swabs of {} of {} donors".format(
-        sum(donors.values()), len(donors)), size=26)
+    unclear = sorted({r["donor"] for r in rows if r["call"] == "unclear"})
+    s = D.slide("Sample identity check: sex-marker expression agrees between the two swabs of {} of {} donors{}".format(
+        sum(donors.values()), len(donors),
+        "; donor {} unclear in both".format(", ".join(unclear)) if unclear else ""), size=26)
     D.picture(s, p, 0.8, 1.5, 6.0, 5.0)
     D.bullets(s, ["XIST against Y-linked genes (RPS4Y1, DDX3Y, KDM5D, UTY, EIF1AY, USP9Y, ZFY), counts per million "
                   "from all reads",
