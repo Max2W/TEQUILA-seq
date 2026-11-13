@@ -5,7 +5,6 @@ Figure 1  Sequencing and detection
   a  reads sequenced per sample (bars) and mean read length (number above)
   b  read filtering per gene: reads at the locus kept for the gene vs removed, per sample
   c  detection: gene reads per million sequenced reads, Zymo vs Genotek, one line per donor
-  d  the same for spliced gene reads only (reads that are certainly mRNA, not pre-mRNA or genomic DNA)
 Figure 2  RNA integrity at the target genes
   a  full-length reads (reach the first and the last canonical exon) per sample
   b  read length of the gene's reads per sample
@@ -136,7 +135,7 @@ def main():
     # ------------------------------------------------------------------ Figure 1
     W = NATURE_W_IN
     fig = plt.figure(figsize=(W, 2.5 + 0.0))
-    gs = fig.add_gridspec(1, 2 + 2 * len(genes), width_ratios=[1.3, 1.6] + [0.62] * (2 * len(genes)), wspace=0.6,
+    gs = fig.add_gridspec(1, 2 + len(genes), width_ratios=[1.3, 1.6] + [0.62] * len(genes), wspace=0.6,
                           left=0.07, right=0.98, bottom=0.27, top=0.88)
     ax = fig.add_subplot(gs[0, 0])
     x = np.arange(len(samples))
@@ -175,9 +174,8 @@ def main():
     theme(ax)
     letter(ax, "b")
 
-    # c: all gene reads per million; d: spliced gene reads per million (reads that are certainly mRNA)
-    panels = [("kept", "reads per million sequenced", "c", "reads_per_million"),
-              ("spliced_kept", "spliced reads per million", "d", "spliced_reads_per_million")]
+    # c: gene reads per million
+    panels = [("kept", "reads per million sequenced", "c", "reads_per_million")]
     for pi, (col, ylabel, panel, measure) in enumerate(panels):
         for gi, gene in enumerate(genes):
             ax = fig.add_subplot(gs[0, 2 + pi * len(genes) + gi])
@@ -213,19 +211,6 @@ def main():
     plt.close(fig)
 
     # ------------------------------------------------------------------ Figure 2
-    # kit comparison of the spliced fraction (table only; not drawn)
-    for gene in genes:
-        frac = {}
-        for s in samples:
-            f = filt.get((gene, s))
-            if f and int(f["kept"]):
-                frac[s] = int(f["spliced_kept"]) / int(f["kept"])
-                data2.append(("table", gene, s, "percent_spliced", round(100 * frac[s], 2)))
-        pairs = paired_rows(frac, samples, meta, kits)
-        comparisons.append(compare("percent_spliced", gene, {d: (None if a is None else 100 * a,
-                                                                 None if b is None else 100 * b)
-                                                             for d, (a, b) in pairs.items()}, kits, log=False))
-
     fig = plt.figure(figsize=(W, 2.9))
     gs = fig.add_gridspec(1, 2, wspace=0.28, left=0.07, right=0.98, bottom=0.27, top=0.86)
     width = 0.38

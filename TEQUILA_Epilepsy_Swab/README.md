@@ -210,6 +210,17 @@ When the full path has run (`07_qc_full.sh`), step 10 also applies the gene read
 To add this pilot's RIN values to that figure and slide, put a `rin.tsv` (columns `sample_id`, `RIN`) in this folder
 and run step 10 again.
 
+### Patient variant coverage (step 10)
+
+If `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/variants/patient_variants.tsv` exists, step 10 runs
+`scripts/variant_coverage.py`, which counts how many gene reads per swab cover each known patient variant of the target
+genes. The file needs columns gene, nucleotide (c.), protein and pathogenicity, separated by tabs or `|`.
+- c. positions are read on the MANE Select transcript, and the reference base is checked against the genome.
+- For splice-site variants, reads splicing across the variant's intron also count.
+
+The output, in `results/figures/variants/`, is a table, a figure per gene and a summary. The variant table holds patient
+information: keep it on scratch, never in this repository.
+
 ### Step 8. Expression QC of the full run (panel on-target rate, PCA, correlation)
 
 `11_expression_qc.sh` reads every read of the genome-wide BAMs (`qc/bam/`, step 07). It runs as a job:

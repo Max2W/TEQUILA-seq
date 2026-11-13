@@ -100,6 +100,19 @@ else
   echo "[slides] no ${QC_DIR}/per_sample_qc.tsv (07_qc_full.sh): full-path slides left out"
 fi
 
+# coverage of known patient variants: the variant table holds patient information and is kept on scratch, never in
+# the repository (${PROJECT_DIR}/variants/patient_variants.tsv)
+var_args=()
+VARIANTS="${PROJECT_DIR}/variants/patient_variants.tsv"
+if [[ -s "${VARIANTS}" ]]; then
+  python "${ANALYSIS_DIR}/scripts/variant_coverage.py" --variants "${VARIANTS}" --genes "${genes_csv}" --gtf "${GTF}" \
+    --fasta "${GENOME}" --sample-sheet "${SAMPLE_SHEET}" --bam-pattern "${FAST_DIR}/bam_filtered/{gene}/{sample}.bam" \
+    --outdir "${FIG}/variants"
+  var_args=(--variant-figures "${FIG}/variants")
+else
+  echo "[slides] no ${VARIANTS}: patient variant coverage slides left out"
+fi
+
 # run label for the sequencing slide: flow cell id(s) and run date(s) from the run folder names
 labels=()
 for fc in "${FLOWCELLS[@]}"; do
@@ -111,6 +124,6 @@ run_label="$(IFS=';'; echo "${labels[*]}" | sed 's/;/; /g')"
 mkdir -p "${RESULTS_DIR}/slides"
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
-  --public-figures "${FIG}/public" "${rin_slide[@]}" "${full_args[@]}" \
+  --public-figures "${FIG}/public" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" \
   --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
 echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"

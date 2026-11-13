@@ -65,6 +65,7 @@ def parse_args():
     p.add_argument("--rin", help="optional TSV with sample_id, RIN of this pilot's swab RNA")
     p.add_argument("--full-figures", help="figures of scripts/full_path_figures.py (all reads aligned)")
     p.add_argument("--expression-figures", help="figures of scripts/expression_qc.py (11_expression_qc.sh)")
+    p.add_argument("--variant-figures", help="figures of scripts/variant_coverage.py")
     p.add_argument("--out", required=True)
     return p.parse_args()
 
@@ -299,6 +300,9 @@ def main():
         items.append("Full length = the read reaches the first and the last exon of the canonical (MANE) transcript")
         D.bullets(s, items, 8.8, 1.8, 4.2, 4.8, size=15)
 
+    if args.variant_figures and os.path.isdir(args.variant_figures):
+        variant_slides(D, args, genes, samples)
+
     for g in genes:
         bg = BACKGROUND.get(g)
         model = os.path.join(deck_dir, "{}_gene_model.png".format(g))
@@ -431,6 +435,45 @@ def full_path_slides(D, args, genes, samples, fast_filt):
                  "Both count the gene's reads the same way, so the fast-path numbers in this deck are complete"]
         D.bullets(s, items, 8.8, 1.7, 4.3, 5.0, size=15)
     expression_slides(D, args, genes, "samples")
+
+
+def variant_slides(D, args, genes, samples):
+    vf = args.variant_figures
+    rows = read_tsv(os.path.join(vf, "variant_coverage.tsv"))
+    if not rows:
+        return
+    def covered(r, t):
+        return max(int(r["{}_reads".format(s)]) for s in samples if "{}_reads".format(s) in r) >= t
+    p = os.path.join(vf, "variant_coverage_summary.png")
+    if os.path.exists(p):
+        parts = []
+        for g in genes:
+            vs = [r for r in rows if r["gene"] == g]
+            if vs:
+                parts.append("{} {} of {}".format(g, sum(covered(r, 20) for r in vs), len(vs)))
+        s = D.slide("Known patient variants covered by >= 20 reads in at least one swab: " + ", ".join(parts),
+                    size=26)
+        D.picture(s, p, 0.5, 1.45, SW - 1.0, 4.3)
+        n_match = sum(r["reference_check"] == "match" for r in rows)
+        n_mis = sum(r["reference_check"].startswith("MISMATCH") for r in rows)
+        D.bullets(s, [
+            "Distinct c. variants of {} from the lab's patient list; copy-number changes, exon deletions and other "
+            "genes left out".format(" and ".join(genes)),
+            "c. positions on the MANE Select transcripts; reference base confirmed for {} variants, {} mismatches"
+            .format(n_match, n_mis),
+            "Splice-site variants count reads with a base at the site and reads splicing across its intron"],
+            0.5, 5.8, SW - 1.0, 1.4, size=14)
+    for g in genes:
+        p = os.path.join(vf, "variant_coverage_{}.png".format(g))
+        vs = [r for r in rows if r["gene"] == g]
+        if not os.path.exists(p) or not vs:
+            continue
+        five = [r for r in vs if not covered(r, 1)]
+        s = D.slide("{}: {} of {} patient variants covered by >= 20 reads, {} not covered at all".format(
+            g, sum(covered(r, 20) for r in vs), len(vs), len(five)), size=26)
+        D.picture(s, p, 0.2, 1.35, SW - 0.4, 5.6)
+        D.note(s, "Reads per variant and swab (gene reads); variants ordered 5' to 3' along the transcript; top: summed "
+                  "coverage of the 8 swabs with the variant positions", size=11)
 
 
 def expression_slides(D, args, genes, part):
