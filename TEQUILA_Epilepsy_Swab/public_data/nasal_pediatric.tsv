@@ -1,0 +1,19 @@
+# Nasal epithelial sampling in children: outcome by age group, transcribed from the full texts on 2026-11-13.
+# Outcomes differ between studies (tolerated, cells for culture, enough RNA, library QC); each row names its own.
+# Groves 2018  Groves HE et al. PLoS One 2018. doi:10.1371/journal.pone.0201328. PMC6281239. 2.7 mm interdental
+#              brush, 2 rotations against the medial inferior turbinate, one per nostril, awake neonates.
+# Chu 2016     Chu CY et al. Sci Rep 2016;6:33994. PMC5034274 (and supplement). Copan FLOQSwab 518C after a saline
+#              wash, awake term infants ~1 month; RNA-seq.
+# CRM 2021     Cell Rep Methods 2021, PMC8594859. Flocked nasal swabs, children 0-36 months; RNA-seq.
+# Martens 2019 Martens A et al. Sci Rep 2019. PMC6934534. Ex-extremely-preterm infants.
+# Evans 2024   Evans DJ et al. Front Cell Dev Biol 2024. PMC11303191. Preterm-born infants ~1 y, sedated, 2.0 mm brush.
+# Fawcett 2023 Fawcett LK et al. J Pers Med 2023. PMC10222672. Awake brushing, 5.7-58.5 y (under 5 y: only under
+#              general anaesthesia).
+age_group	label	measure	value	n	study	location
+Newborn (<= 5 days)	brushing tolerated, awake	tolerated	100	41/41	Groves 2018	Results ("well tolerated by all")
+Newborn (<= 5 days)	cells grew in culture	culture	80.5	33/41	Groves 2018	Results
+Infant (~1 month)	flocked swab tolerated, awake	tolerated	100	53/53	Chu 2016	Results ("all subjects tolerated")
+Child (0-3 years)	flocked swab, library passed QC	library_qc	89.2	58/65	Cell Rep Methods 2021	Results (19/22 + 39/43)
+Preterm-born infant	cells isolated	culture	38.5	5/13	Martens 2019	Results
+Preterm-born infant (~1 y, sedated)	enough cells for RNA	rna	28.6	10/35	Evans 2024	Results (1 of 10 then failed library QC)
+Age 5-58 years (awake)	cells grew in culture	culture	89.7	130/145	Fawcett 2023	Results

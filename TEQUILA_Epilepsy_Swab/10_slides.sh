@@ -70,6 +70,14 @@ if [[ -s "${RIN_TSV}" ]]; then
 fi
 python "${ANALYSIS_DIR}/scripts/public_data_figures.py" --public-dir "${ANALYSIS_DIR}/public_data" \
   --genes "${genes_csv}" "${rin_args[@]}" --outdir "${FIG}/public"
+# next specimen: nasal brushing vs buccal swab, from published numbers (public_data/nasal_literature.tsv)
+ped=()
+if [[ -s "${ANALYSIS_DIR}/public_data/nasal_pediatric.tsv" ]]; then ped=(--pediatric "${ANALYSIS_DIR}/public_data/nasal_pediatric.tsv"); fi
+if [[ -s "${ANALYSIS_DIR}/public_data/nasal_gse152004_summary.tsv" ]]; then
+  ped+=(--expression "${ANALYSIS_DIR}/public_data/nasal_gse152004_summary.tsv")
+fi
+python "${ANALYSIS_DIR}/scripts/nasal_literature_figures.py" --table "${ANALYSIS_DIR}/public_data/nasal_literature.tsv" \
+  "${ped[@]}" "${rin_args[@]}" --outdir "${FIG}/nasal"
 
 # full path (all reads aligned, 07_qc_full.sh): capture QC, top genes, and the same gene read filter on the
 # genome-wide BAMs to see how many gene reads the k-mer baiting of the fast path recovered
@@ -101,13 +109,23 @@ else
   echo "[slides] no ${QC_DIR}/per_sample_qc.tsv (07_qc_full.sh): full-path slides left out"
 fi
 
-# RIN against read-level integrity; sex-marker sample identity check (needs 11_expression_qc.sh)
+# RIN against read-level integrity; RNA composition (12_rna_composition.sh); sex-marker sample identity check
+# (needs 11_expression_qc.sh)
 extra_args=()
 if [[ -s "${RIN_TSV}" && -s "${RESULTS_DIR}/fragmentation/filtered/fragmentation_summary.tsv" ]]; then
   python "${ANALYSIS_DIR}/scripts/rin_figures.py" --rin "${RIN_TSV}" \
     --fragmentation "${RESULTS_DIR}/fragmentation/filtered/fragmentation_summary.tsv" --sample-sheet "${SAMPLE_SHEET}" \
     --martorella "${ANALYSIS_DIR}/public_data/martorella2023_summary.tsv" --genes "${genes_csv}" --outdir "${FIG}/rin"
   extra_args+=(--rin-figures "${FIG}/rin")
+fi
+if [[ -s "${QC_DIR}/composition/composition.tsv" ]]; then
+  counts=()
+  if [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then counts=(--gene-counts "${QC_DIR}/expression/gene_counts.tsv"); fi
+  python "${ANALYSIS_DIR}/scripts/composition_figures.py" --composition-dir "${QC_DIR}/composition" "${counts[@]}" \
+    --sample-sheet "${SAMPLE_SHEET}" --outdir "${FIG}/composition"
+  extra_args+=(--composition-figures "${FIG}/composition")
+else
+  echo "[slides] no ${QC_DIR}/composition (12_rna_composition.sh): RNA composition slides left out"
 fi
 if [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then
   python "${ANALYSIS_DIR}/scripts/sex_check.py" --counts "${QC_DIR}/expression/gene_counts.tsv" \
@@ -139,6 +157,6 @@ run_label="$(IFS=';'; echo "${labels[*]}" | sed 's/;/; /g')"
 mkdir -p "${RESULTS_DIR}/slides"
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
-  --public-figures "${FIG}/public" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" \
+  --public-figures "${FIG}/public" --nasal-figures "${FIG}/nasal" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" \
   --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
 echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"

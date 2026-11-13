@@ -1,0 +1,52 @@
+# Numbers from published studies of nasal and oral RNA sampling, transcribed from the full texts (PMC) on 2026-11-13.
+# pass_n: value = samples passing, lo = samples tested. pass_pct: percent only (denominator not stated clearly).
+# Columns: measure, label (as drawn), site (mouth / nose_front / nose_deep / scalp), surface (squamous / respiratory /
+# mixed / hair), value, lo, hi (interval, empty if none; type in 'interval'), n, study, location in the paper.
+# Studies:
+#   Lai 2015      Lai PS et al. J Allergy Clin Immunol 2015;136:1120. doi:10.1016/j.jaci.2015.04.032. PMC4600430.
+#                 12 adults, inferior turbinate (IT) cytology brush vs anterior nares (AN) brush or flocked swab.
+#   Martorella    Martorella M et al. BMC Genomics 2023;24:790. doi:10.1186/s12864-023-09875-4. PMC10729488.
+#   Pandey 2018   Pandey G et al. Sci Rep 2018;8:8969. doi:10.1038/s41598-018-27189-4. PMC5995932. Cytology brush,
+#                 RNAlater; 190 people brushed (n behind the RIN not stated).
+#   Sridhar 2008  Sridhar S et al. BMC Genomics 2008;9:259. PMC2435556. Buccal scrapes (5 per cheek, pooled) and
+#                 nasal epithelial brushings.
+#   Chu 2016      Chu CY et al. Sci Rep 2016;6:33994. PMC5034274. Inferior turbinate brushing, infants ~1 month.
+#   Cell Rep Methods 2021      Cell Rep Methods 2021, PMC8594859. Flocked nasal swabs from children 0-36 months in DNA Genotek
+#                 OMR-110 stabiliser.
+#   Ziegler 2021  Ziegler CGK et al. Cell 2021;184:4713. PMC8299217. Nasopharyngeal flocked swabs, scRNA-seq.
+#   Rudney 2006   Rudney JD, Chen R. Arch Oral Biol 2006;51:291. PMID 16239000. Buccal epithelial cells, n = 36.
+#   Nat Commun 2024       Nat Commun 2024, PMC11608262. Mid-turbinate flocked swabs in RNAprotect, adult challenge study.
+measure	label	site	surface	value	lo	hi	interval	n	study	location
+RIN	Buccal swab	mouth	squamous	2.5				19 donors	Martorella 2023	Results (mean)
+RIN	Saliva	mouth	mixed	2.6				19 donors	Martorella 2023	Results (mean)
+RIN	Anterior nares swab	nose_front	squamous	1.1	1.0	1.8	IQR	12 adults	Lai 2015	Table 1 (median)
+RIN	Anterior nares brush	nose_front	mixed	3.9	2.7	5.3	IQR	12 adults	Lai 2015	Table 1 (median)
+RIN	Nasal flocked swab, children 0-3 y	nose_front	mixed	4.1				65 children	Cell Rep Methods 2021	Results (average, "~4.1")
+RIN	Nasal cytology brush	nose_deep	respiratory	7.8	6.7	8.9	mean +/- SD	190 brushed	Pandey 2018	Results (mean +/- SD)
+RIN	Inferior turbinate brush	nose_deep	respiratory	8.9	8.6	9.5	IQR	12 adults	Lai 2015	Table 1 (median)
+RIN	Hair follicles	scalp	hair	8.9				19 donors	Martorella 2023	Results (mean)
+yield_ng	Anterior nares swab	nose_front	squamous	156	60	588	IQR	12 adults	Lai 2015	Table 1 (median)
+yield_ng	Anterior nares brush	nose_front	mixed	192	81	615	IQR	12 adults	Lai 2015	Table 1 (median)
+yield_ng	Inferior turbinate brush, infants	nose_deep	respiratory	278.5				53 infants	Chu 2016	Table 1 (mean; SD 436.7)
+yield_ng	Buccal swab	mouth	squamous	1054.2				19 donors	Martorella 2023	Supp Fig 1 (median)
+yield_ng	Hair follicles (10)	scalp	hair	1444	606	2531	IQR	19 donors	Martorella 2023	Results (median)
+yield_ng	Buccal scrapes (10, pooled)	mouth	squamous	1823	580	3066	mean +/- SD	10	Sridhar 2008	Methods (mean +/- SD)
+yield_ng	Inferior turbinate brush	nose_deep	respiratory	4620	2364	6993	IQR	12 adults	Lai 2015	Table 1 (median)
+yield_ng	Nasal brushing	nose_deep	respiratory	25000				15	Sridhar 2008	Discussion (average)
+pct_respiratory	Anterior nares swab	nose_front	squamous	50.3				12 adults	Lai 2015	Table 1 (median)
+pct_squamous	Anterior nares swab	nose_front	squamous	49.7	24.4	50.9	IQR	12 adults	Lai 2015	Results (median)
+pct_respiratory	Anterior nares brush	nose_front	mixed	82.4				12 adults	Lai 2015	Table 1 (median)
+pct_squamous	Anterior nares brush	nose_front	mixed	11.0	5.8	39.3	IQR	12 adults	Lai 2015	Results (median)
+pct_respiratory	Inferior turbinate brush	nose_deep	respiratory	99.2	92.2	100	IQR	12 adults	Lai 2015	Table 1 (median)
+cells_epithelial	Nasopharyngeal swab (scRNA-seq)	nose_deep	respiratory	28948				58	Ziegler 2021	Fig 2 (cells after QC)
+cells_immune	Nasopharyngeal swab (scRNA-seq)	nose_deep	respiratory	3640				58	Ziegler 2021	Fig S3 (cells after QC)
+pct_viable	Buccal epithelial cells	mouth	squamous	70				36	Rudney 2006	Abstract
+pct_apoptotic	Buccal epithelial cells	mouth	squamous	25				36	Rudney 2006	Abstract
+pct_dead	Buccal epithelial cells	mouth	squamous	5				36	Rudney 2006	Abstract
+pass_n	Buccal swab	mouth	squamous	109	118		of	19 donors	Martorella 2023	Results (libraries passing QC)
+pass_n	Saliva	mouth	mixed	51	118		of	19 donors	Martorella 2023	Results (libraries passing QC)
+pass_n	Hair follicles	scalp	hair	113	118		of	19 donors	Martorella 2023	Results (libraries passing QC)
+pass_pct	Anterior nares (brush or swab)	nose_front	squamous	33.3				8 adults	Lai 2015	Results (enough RNA for microarray)
+pass_pct	Inferior turbinate brush	nose_deep	respiratory	91.7				8 adults	Lai 2015	Results (enough RNA for microarray)
+pass_n	Nasal flocked swab, children 0-3 y	nose_front	mixed	58	65		of	65 children	Cell Rep Methods 2021	Results (library QC: 19/22 controls, 39/43 RSV)
+pass_n	Mid-turbinate flocked swab, adults	nose_deep	mixed	103	238		of	238 swabs	Nat Commun 2024	Results (adequate RNA for sequencing)

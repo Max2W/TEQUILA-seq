@@ -68,6 +68,8 @@ def parse_args():
     p.add_argument("--variant-figures", help="figures of scripts/variant_coverage.py")
     p.add_argument("--rin-figures", help="figures of scripts/rin_figures.py")
     p.add_argument("--sex-figures", help="figures of scripts/sex_check.py")
+    p.add_argument("--composition-figures", help="figures of scripts/composition_figures.py (12_rna_composition.sh)")
+    p.add_argument("--nasal-figures", help="figures of scripts/nasal_literature_figures.py (next specimen)")
     p.add_argument("--out", required=True)
     return p.parse_args()
 
@@ -256,6 +258,8 @@ def main():
 
     if args.full_figures and os.path.isdir(args.full_figures):
         full_path_slides(D, args, genes, samples, filt)
+    if args.composition_figures and os.path.isdir(args.composition_figures):
+        composition_slides(D, args)
 
     # 4. detection: reads of the two genes per swab
     path = os.path.join(deck_dir, "gene_reads.png")
@@ -317,6 +321,9 @@ def main():
             D.bullets(s, bg["right"], 6.9, 1.6, 6.0, 4.9, size=16)
             D.note(s, bg["refs"], size=12)
         add_gene_slides(D, g, fig, deck_dir, samples, sheet)
+
+    if args.nasal_figures and os.path.isdir(args.nasal_figures):
+        nasal_slides(D, args)
 
     # summary
     s = D.slide("Summary")
@@ -439,6 +446,148 @@ def full_path_slides(D, args, genes, samples, fast_filt):
         D.bullets(s, items, 8.8, 1.7, 4.3, 5.0, size=15)
     expression_slides(D, args, genes, "samples")
     sex_slide(D, args)
+
+
+def composition_slides(D, args):
+    cf = args.composition_figures
+    vals = defaultdict(dict)
+    for r in read_tsv(os.path.join(cf, "composition_figures.tsv")):
+        vals[(r["measure"], r["key"])][r["sample_id"]] = r["value"]
+
+    def rng(measure, key="", digits=0, pct=True):
+        v = [float(x) for x in vals[(measure, key)].values() if x not in ("NA", "nan")]
+        return fmt_range(v, digits, pct) if v else "NA"
+
+    p = os.path.join(cf, "composition.png")
+    if os.path.exists(p):
+        s = D.slide("Off-panel reads: {} spliced mRNA, {} intronic or intergenic".format(
+            rng("summary_exonic_spliced"), rng("summary_intronic_intergenic")), size=28)
+        D.picture(s, p, 0.3, 1.4, SW - 0.6, 4.1)
+        D.bullets(s, [
+            "Off-panel reads were not selected by the probes: the closest view of the RNA that went into the library",
+            "Mitochondrial and rRNA {}; unmapped {}".format(rng("summary_mito_rrna"), rng("summary_unmapped")),
+            "Spliced reads come from processed mRNA; intronic and intergenic reads from pre-mRNA or genomic DNA",
+            "Sequence cannot tell RNA inside cells from cell-free RNA: that needs the swab eluate spun and the cell "
+            "pellet and supernatant extracted separately"], 0.5, 5.45, SW - 1.0, 1.6, size=13)
+        D.note(s, "Exonic: >= 50% of aligned bases on exons; spliced: an intron of >= 30 nt in the alignment; the 45S "
+                  "rRNA repeats are not in GRCh38, so most 45S reads count as unmapped", size=11)
+    p = os.path.join(cf, "genebody.png")
+    if os.path.exists(p):
+        frac = [float(x) * 100 for x in vals[("median_tx_fraction_off_panel", "")].values() if x != "NA"]
+        s = D.slide("Reads of mRNA cover a median {} of a transcript".format(fmt_range(frac, 0, True))
+                    if frac else "Coverage along transcripts", size=28)
+        D.picture(s, p, 0.3, 1.45, 7.6, 4.7)
+        D.bullets(s, [
+            "Canonical transcripts >= 1.5 kb of genes outside the probe panel",
+            "Reads covering >= 50% of the transcript: {}".format(rng("percent_reads_ge50_off_panel")),
+            "3' / 5' coverage (last 20% over first 20%): {}".format(rng("ratio_3p_5p_off_panel", digits=1,
+                                                                        pct=False)),
+            "Intact RNA gives flat coverage; broken RNA loses the 5' end when reads start at the poly(A) tail"],
+            8.1, 1.7, 5.0, 4.8, size=15)
+    p = os.path.join(cf, "read_length.png")
+    if os.path.exists(p):
+        med = [float(x) for x in vals[("read_length_median", "exonic, spliced")].values()]
+        s = D.slide("Read length by category: spliced mRNA reads {} nt (median)".format(fmt_range(med))
+                    if med else "Read length by category", size=28)
+        D.picture(s, p, 0.6, 1.5, SW - 1.2, 4.9)
+    p = os.path.join(cf, "markers.png")
+    if os.path.exists(p):
+        groups = {k: float(v["all"]) for (m, k), v in vals.items() if m == "marker_group_mean_cpm"}
+        ranked = sorted(groups, key=groups.get, reverse=True)
+        if len(ranked) > 1 and groups[ranked[0]] >= 2 * groups[ranked[1]]:
+            title = "Cell-type markers point to {} as the main source of swab RNA".format(ranked[0].lower())
+        else:
+            title = "Cell-type marker genes in swab RNA"
+        s = D.slide(title, size=28)
+        D.picture(s, p, 0.3, 1.4, 7.4, 5.4)
+        items = ["{}: mean {:,.0f} CPM ({} across samples)".format(
+            g, groups[g], rng("marker_group_cpm", g, 0, False)) for g in ranked]
+        items.append("Airway markers and OMP (olfactory neurons) are the reference for a nasal sample")
+        D.bullets(s, items, 7.9, 1.7, 5.2, 4.9, size=14)
+        D.note(s, "CPM: counts per million reads assigned to genes outside the probe panel (11_expression_qc.sh)",
+               size=11)
+
+
+def nasal_slides(D, args):
+    nf = args.nasal_figures
+    tab = read_tsv(os.path.join(nf, "nasal_literature_figures.tsv"))
+    val = {(r["measure"], r["label"]): float(r["value"]) for r in tab if r["value"]}
+    D.divider("Next specimen: nasal epithelial brushing", "What the literature reports, against buccal swabs")
+    p = os.path.join(nf, "nasal_expression.png")
+    if os.path.exists(p):
+        cpm = {r["label"]: float(r["value"]) for r in tab if r["measure"] == "nasal_cpm_median"}
+        share = [float(r["value"]) for r in tab if r["measure"] == "nasal_panel_percent_ge10cpm"]
+        tg = [g for g in args.genes.split(",") if g in cpm]
+        s = D.slide("Nasal brushings express " + " and ".join("{} (median {:.0f} CPM)".format(g, cpm[g]) for g in tg)
+                    if tg else "Gene expression in nasal brushings", size=28)
+        D.picture(s, p, 0.3, 1.45, SW - 0.6, 4.4)
+        items = []
+        if share:
+            items.append("{:.0f}% of the probe-panel genes reach a median of 10 CPM".format(share[0]))
+        if "OMP" in cpm:
+            items.append("OMP {:.1f} CPM: no olfactory neurons in an inferior turbinate brushing; the signal comes "
+                         "from airway epithelium".format(cpm["OMP"]))
+        items.append("Public short-read data (GEO GSE152004, n = 695 children and young people, Sajuthi 2020); "
+                     "levels in a captured long-read library will differ")
+        D.bullets(s, items, 0.5, 5.9, SW - 1.0, 1.4, size=14)
+    p = os.path.join(nf, "nasal_rin.png")
+    if os.path.exists(p):
+        it, bu = val.get(("RIN", "Inferior turbinate brush")), val.get(("RIN", "Buccal swab"))
+        s = D.slide("RNA integrity: inferior turbinate brushing RIN {:.1f}, buccal swabs {:.1f}".format(it, bu)
+                    if it and bu else "RNA integrity by sampling site", size=28)
+        D.picture(s, p, 0.3, 1.4, 8.4, 5.5)
+        D.bullets(s, ["The site matters more than the device: at the front of the nose (squamous lining) RIN is "
+                      "low with a brush or a swab",
+                      "A brush on the inferior turbinate, a few cm inside, reaches living airway epithelium",
+                      "Our buccal swabs sit with the published buccal and saliva values"], 8.9, 1.7, 4.2, 5.0,
+                  size=15)
+    p = os.path.join(nf, "nasal_cells.png")
+    if os.path.exists(p):
+        r, q = val.get(("pct_respiratory", "Inferior turbinate brush")), val.get(("pct_squamous",
+                                                                                  "Anterior nares swab"))
+        s = D.slide("Inferior turbinate brushings are {:.0f}% airway epithelial cells; anterior nares swabs {:.0f}% "
+                    "squamous".format(r, q) if r and q else "Cells collected by each method", size=26)
+        D.picture(s, p, 0.3, 1.5, SW - 0.6, 4.4)
+        D.bullets(s, ["Buccal swabs collect shed squamous cells that are mostly still alive (70% viable), plus "
+                      "immune cells and oral bacteria",
+                      "Nasal brushings collect ciliated, secretory and basal airway cells; olfactory neurons lie "
+                      "higher (olfactory cleft) and need an endoscope-guided brushing"], 0.5, 5.9, SW - 1.0, 1.3,
+                  size=14)
+    p = os.path.join(nf, "nasal_yield.png")
+    if os.path.exists(p):
+        it, an = val.get(("yield_ng", "Inferior turbinate brush")), val.get(("yield_ng", "Anterior nares swab"))
+        s = D.slide("RNA yield: inferior turbinate brush {:,.0f} ng, anterior nares swab {:,.0f} ng (medians)".format(
+            it, an) if it and an else "RNA yield by sampling site", size=26)
+        D.picture(s, p, 0.3, 1.4, 8.4, 5.5)
+        items = ["Inferior turbinate brushing gives about {:.0f} times the RNA of an anterior nares swab".format(
+            it / an)] if it and an else []
+        inf = val.get(("yield_ng", "Inferior turbinate brush, infants"))
+        if inf:
+            items.append("Infants about 1 month old: mean {:,.0f} ng per brushing (Chu 2016)".format(inf))
+        D.bullets(s, items, 8.9, 1.7, 4.2, 5.0, size=15)
+    p = os.path.join(nf, "nasal_success.png")
+    if os.path.exists(p):
+        s = D.slide("Share of samples with enough RNA or passing library QC", size=28)
+        D.picture(s, p, 0.3, 1.4, 8.4, 5.5)
+        pct = {r["label"]: float(r["value"]) for r in tab if r["measure"] == "percent_passing"}
+        items = []
+        if "Buccal swab" in pct:
+            items.append("Low RIN does not stop library preparation: {:.0f}% of buccal swab libraries passed QC "
+                         "(Martorella 2023)".format(pct["Buccal swab"]))
+        if "Mid-turbinate flocked swab, adults" in pct:
+            items.append("Mid-turbinate flocked swabs: adequate RNA in {:.0f}% of adult swabs".format(
+                pct["Mid-turbinate flocked swab, adults"]))
+        if "Nasal flocked swab, children 0-3 y" in pct:
+            items.append("Flocked nasal swabs from children 0-3 years: {:.0f}% of libraries passed QC".format(
+                pct["Nasal flocked swab, children 0-3 y"]))
+        D.bullets(s, items, 8.9, 1.7, 4.2, 5.0, size=15)
+    p = os.path.join(nf, "nasal_pediatric.png")
+    if os.path.exists(p):
+        s = D.slide("Nasal sampling in children by age", size=28)
+        D.picture(s, p, 0.3, 1.4, SW - 0.6, 5.3)
+        D.note(s, "Outcomes differ between studies (bar colour). No study reports RIN by age; awake brushing at 1-5 "
+                  "years is not reported (Fawcett 2023 brushed children under 5 under anaesthesia). Sources: "
+                  "public_data/nasal_pediatric.tsv", size=11)
 
 
 def rin_slide(D, args, genes):

@@ -242,6 +242,37 @@ cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy
 bash 11_expression_qc.sh
 ```
 
+### Step 9. RNA composition: what kind of RNA the swab reads come from
+
+The question: is the low-RIN swab RNA mature mRNA from cells, broken into pieces, or something else? `12_rna_composition.sh`
+reads every read of the genome-wide BAMs (`qc/bam/`, step 07) and runs as a job (8 CPUs):
+
+1. `scripts/rna_composition.py` puts each read in one category: exonic spliced (processed mRNA), exonic unspliced,
+   intronic (pre-mRNA or DNA), intergenic, mitochondrial, rRNA, or unmapped. Each read is also marked panel or
+   off-panel; off-panel reads were not selected by the probes, so they are the closest view of the input RNA. It
+   also records read lengths per category and the coverage of reads along canonical transcripts of at least 1.5 kb
+   outside the panel (5' to 3'). The tables are written to `qc/composition/`.
+2. `scripts/composition_figures.py` draws the categories, read lengths, transcript coverage, and cell-type marker
+   genes (squamous epithelium, salivary gland, immune cells, airway epithelium, olfactory neurons) in
+   `results/figures/composition/`. The marker figure needs `qc/expression/gene_counts.tsv` from step 8.
+
+Reads cannot tell RNA inside cells from cell-free RNA. That needs a wet-lab test: spin the swab eluate, then extract
+the cell pellet and the supernatant separately and measure the RIN and yield of each.
+
+The same step runs unchanged on a nasal-brushing pilot, so the two specimens can be compared category by category.
+Run step 10 again afterwards to add these slides to the deck.
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+bash 12_rna_composition.sh
+```
+
+When it finishes, paste back the output of:
+
+```bash
+column -t /scr1/users/wangf3/TEQUILA_Epilepsy_Swab/qc/composition/transcript_span.tsv
+```
+
 ### Folder layout on scratch
 
 ```
