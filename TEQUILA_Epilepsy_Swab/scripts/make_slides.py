@@ -700,30 +700,39 @@ def panel_slides(D, args, genes, samples, total):
                       "PRRT2 and DEPDC5 were left out (mostly self-limited or focal epilepsy); PCDH19 (females) would be "
                       "the next choice"], 0.5, 5.85, SW - 1.0, 1.1, size=14)
         D.note(s, TRUTY + "  " + SYMONDS, size=11)
-    note = ("GTEx v8 median TPM in the closest tissue; nasal brushings: GEO GSE152004 (n = 695, Sajuthi 2020), TPM "
-            "from counts and GENCODE exon lengths. Brain-expressed: median TPM >= 10 in brain cortex.")
+    note = ("Measured in the specimen (open GEO RNA-seq, healthy or control samples): nasal brushings GSE152004 (n = 695) "
+            "and GSE118761 (children, n = 14), buccal brushings GSE330022 (n = 24), plucked hair GSE224010 (n = 5), "
+            "PAXgene blood GSE112087 (n = 29), cultured urine cells GSE235813 (n = 37); * GTEx v8. TPM from counts and "
+            "GENCODE exon lengths, all sources scaled over protein-coding genes. Brain-expressed: >= 10 TPM in brain "
+            "cortex.")
     p = os.path.join(af, "atlas_coverage.png")
     if os.path.exists(p):
-        rec = {k: float(v) for k, v in vals["brain_expressed_recovered_percent"].items()}
-        acc = {k: v for k, v in rec.items() if k != "Whole blood"}
-        title = ("Each accessible specimen expresses {} of the {} brain-expressed panel genes; whole blood {:.0f}%"
-                 .format(fmt_range(list(acc.values()), 0, True), int(num("brain_expressed_genes")),
-                         rec.get("Whole blood", 0))) if acc else "Panel genes expressed per specimen"
+        rec = {k: float(v) for k, v in vals["brain_expressed_recovered_percent_all"].items()}
+        nas = [rec[k] for k in ("Nasal brushing", "Nasal brushing, children") if k in rec]
+        title = ("Nasal brushing expresses {} of the {} brain-expressed panel genes; buccal brushing {:.0f}%, plucked "
+                 "hair {:.0f}%".format(fmt_range(nas, 0, True), int(num("brain_expressed_genes")),
+                                       rec.get("Buccal brushing", 0), rec.get("Plucked hair follicles", 0))
+                 if nas else "Panel genes expressed per specimen")
         s = D.slide(title, size=26)
         D.picture(s, p, 0.3, 1.45, SW - 0.6, 4.3)
-        D.bullets(s, ["Brain cortex expresses {:.0f}% of the panel genes at >= 10 TPM; the accessible specimens "
-                      "{}".format(num("percent_ge10", "Brain cortex"),
-                                  fmt_range([float(v) for k, v in vals["percent_ge10"].items()
-                                             if k not in ("Brain cortex", "Brain cerebellum", "Lung")], 0, True)),
-                      "Nasal brushing, fibroblasts and the oral and skin proxies are close to each other; blood lags"],
-                  0.5, 5.85, SW - 1.0, 1.1, size=14)
-        D.note(s, note, size=10)
+        items = []
+        if "Esophagus mucosa" in rec and "Buccal brushing" in rec:
+            items.append("GTEx stand-ins overstate: esophagus mucosa {:.0f}% against measured buccal brushing {:.0f}%; "
+                         "skin {:.0f}% against plucked hair {:.0f}%".format(
+                             rec["Esophagus mucosa"], rec["Buccal brushing"], rec.get("Skin", 0),
+                             rec.get("Plucked hair follicles", 0)))
+        items.append("Two independent nasal cohorts agree; PAXgene blood {:.0f}%, cultured urine cells {:.0f}%, "
+                     "fibroblasts {:.0f}%".format(rec.get("Whole blood (PAXgene)", 0),
+                                                 rec.get("Urine-derived cells (cultured)", 0),
+                                                 rec.get("Cultured fibroblasts", 0)))
+        D.bullets(s, items, 0.5, 5.85, SW - 1.0, 1.1, size=14)
+        D.note(s, note, size=9)
     p = os.path.join(af, "atlas_heatmap.png")
     if os.path.exists(p):
         n0 = int(num("brain_only_genes") or 0)
         s = D.slide("{} brain-expressed panel genes ({:.0f}%) reach 10 TPM in no accessible specimen".format(
             n0, n0 / num("brain_expressed_genes") * 100), size=28)
-        D.picture(s, p, 0.3, 1.4, 5.4, 5.9)
+        D.picture(s, p, 0.3, 1.4, 5.0, 5.45)
         only = [l.strip() for l in open(os.path.join(af, "brain_only_genes.txt")) if l.strip()]
         hi = [g for g in genes + extra if g in only]
         D.bullets(s, ["Genes are grouped by the number of accessible specimens in which they reach 10 TPM (top: "
@@ -732,21 +741,23 @@ def panel_slides(D, args, genes, samples, total):
                       "For brain-only genes, RNA from an accessible tissue cannot show isoforms or splicing; "
                       "neurons made from patient cells would be needed",
                       "Full list: brain_only_genes.txt next to the figure"], 6.0, 1.7, 7.0, 5.0, size=15)
-        D.note(s, note, size=10)
+        D.note(s, note, size=9)
     p = os.path.join(af, "atlas_reach.png")
     if os.path.exists(p):
         pair = list(vals["best_pair"].items())
-        title = ("Two specimens together, {}, cover {:.0f}% of the brain-expressed panel genes".format(
-            pair[0][0].replace(" + ", " and ").lower(), float(pair[0][1])) if pair
+        short = lambda x: x.replace("Nasal brushing, children", "nasal brushing (children)").replace(  # noqa: E731
+            "Cultured fibroblasts", "fibroblasts").replace("Nasal brushing", "nasal brushing")
+        title = ("Together, {} cover {:.0f}% of the brain-expressed panel genes".format(
+            " and ".join(short(x) for x in pair[0][0].split(" + ")), float(pair[0][1])) if pair
                  else "How many accessible specimens express each brain-expressed panel gene")
         s = D.slide(title, size=28)
         D.picture(s, p, 0.3, 1.45, SW - 0.6, 4.3)
-        D.bullets(s, ["Best single specimen: {} ({:.0f}%); any of the seven: {:.0f}%".format(
+        D.bullets(s, ["Best single specimen: {} ({:.0f}%); any of the accessible specimens: {:.0f}%".format(
             list(vals["best_single_specimen"])[0].lower(), float(list(vals["best_single_specimen"].values())[0]),
             num("any_accessible")),
             "Fibroblasts need a skin biopsy and culture; nasal brushing is the least invasive of the top two"],
             0.5, 5.85, SW - 1.0, 1.1, size=14)
-        D.note(s, note, size=10)
+        D.note(s, note, size=9)
     p = os.path.join(af, "atlas_vs_brain.png")
     if os.path.exists(p):
         rho = [float(v) for v in vals["spearman_vs_brain_cortex"].values()]
@@ -761,20 +772,24 @@ def panel_slides(D, args, genes, samples, total):
         for k, v in vals["target_tpm"].items():
             g, c = k.split("|")
             tpm.setdefault(g, {})[c] = float(v)
-        accs = ["Nasal brushing", "Esophagus mucosa", "Minor salivary gland", "Skin", "Cultured fibroblasts",
-                "EBV lymphocytes", "Whole blood"]
+        accs = ["Nasal brushing", "Nasal brushing, children", "Buccal brushing", "Plucked hair follicles",
+                "Whole blood (PAXgene)", "Urine-derived cells (cultured)", "Cultured fibroblasts", "EBV lymphocytes",
+                "Minor salivary gland"]
         restricted = [g for g in tpm if max(tpm[g].get(c, 0) for c in accs) < 1]
         broad = [g for g in tpm if g not in restricted]
         title = ("{} are brain-restricted; {} reach accessible specimens".format(glist(restricted), glist(broad))
                  if restricted and broad else "The highlighted genes in brain and accessible specimens")
         s = D.slide(title, size=26)
         D.picture(s, p, 0.3, 1.45, SW - 0.6, 4.4)
-        D.bullets(s, ["Brain-restricted: below 1 TPM in every accessible specimen",
+        odd = [g for g in tpm if tpm[g].get("Buccal brushing", 0) > 5 * max(tpm[g].get("Nasal brushing", 0), 1)]
+        D.bullets(s, ["Brain-restricted: below 1 TPM in every accessible specimen" + (
+                      "; {} reads high only in buccal brushings, a total-RNA library where intronic reads can raise "
+                      "long genes: uncertain".format(glist(odd)) if odd else ""),
                       "Nasal brushing: " + ", ".join("{} {}".format(g, (
                           "{:.0f}".format(v) if v >= 10 else "{:.1f}".format(v) if v >= 0.1 else "<0.1"))
                           for g in tpm for v in [tpm[g].get("Nasal brushing")] if v is not None) + " TPM"],
                   0.5, 5.9, SW - 1.0, 1.0, size=14)
-        D.note(s, note, size=10)
+        D.note(s, note, size=9)
 
     # the extra genes: background, public expression, swab results
     ep = args.extra_public

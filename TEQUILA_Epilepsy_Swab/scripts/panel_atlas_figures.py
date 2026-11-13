@@ -30,26 +30,34 @@ plt.rcParams.update({
     "pdf.fonttype": 42, "savefig.facecolor": "white"})
 HEAT = LinearSegmentedColormap.from_list("deck", ["#FFFFFF", "#F3E79B", "#FAB27B", "#EB7F86", "#CE6693", "#A059A0",
                                                   "#5C53A5"])
-# column -> (short label, what it stands for, colour)
+# column -> (short label, what it is, colour); measured specimens first, then GTEx tissues standing in for others
 SPEC = {
-    "Brain cortex": ("Brain cortex", "target tissue", "#2B2B2B"),
-    "Brain cerebellum": ("Brain cerebellum", "target tissue", "#555555"),
-    "Nasal brushing": ("Nasal brushing", "nasal epithelium", "#1B7837"),
-    "Lung": ("Lung", "airway", "#7FBF7B"),
-    "Esophagus mucosa": ("Esophagus mucosa", "closest to buccal", "#708090"),
-    "Minor salivary gland": ("Salivary gland", "closest to saliva", "#D6604D"),
-    "Skin": ("Skin", "closest to hair follicle", "#E8957B"),
-    "Cultured fibroblasts": ("Fibroblasts", "skin biopsy", "#F4A261"),
-    "EBV lymphocytes": ("EBV lymphocytes", "cell line from blood", "#F6C28B"),
-    "Whole blood": ("Whole blood", "blood draw", "#C0392B"),
+    "Brain cortex": ("Brain cortex", "GTEx", "#2B2B2B"),
+    "Brain cerebellum": ("Brain cerebellum", "GTEx", "#555555"),
+    "Nasal brushing": ("Nasal brushing", "GSE152004", "#1B7837"),
+    "Nasal brushing, children": ("Nasal brushing, children", "GSE118761", "#5AAE61"),
+    "Buccal brushing": ("Buccal brushing", "GSE330022", "#708090"),
+    "Plucked hair follicles": ("Plucked hair", "GSE224010", "#D6604D"),
+    "Whole blood (PAXgene)": ("Whole blood", "GSE112087", "#C0392B"),
+    "Urine-derived cells (cultured)": ("Urine cells, cultured", "GSE235813", "#F4A261"),
+    "Cultured fibroblasts": ("Fibroblasts", "GTEx; skin biopsy", "#F6B26B"),
+    "EBV lymphocytes": ("EBV lymphocytes", "GTEx; from blood", "#F6C28B"),
+    "Minor salivary gland": ("Salivary gland", "GTEx; for saliva", "#E8957B"),
+    "Lung": ("Lung", "GTEx; airway", "#A6DBA0"),
+    "Esophagus mucosa": ("Esophagus mucosa", "GTEx; squamous", "#B0BEC5"),
+    "Skin": ("Skin", "GTEx", "#F2C4B6"),
+    "Whole blood": ("Whole blood, GTEx", "GTEx", "#E6A0A0"),
 }
-ACCESSIBLE = ["Nasal brushing", "Esophagus mucosa", "Minor salivary gland", "Skin", "Cultured fibroblasts",
-              "EBV lymphocytes", "Whole blood"]
+MEASURED = ["Nasal brushing", "Nasal brushing, children", "Buccal brushing", "Plucked hair follicles",
+            "Whole blood (PAXgene)", "Urine-derived cells (cultured)"]
+# the accessible specimens compared: measured ones, plus GTEx for those without an open dataset
+ACCESSIBLE = MEASURED + ["Cultured fibroblasts", "EBV lymphocytes", "Minor salivary gland"]
 
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--atlas", required=True, help="public_data/panel_expression_atlas.tsv")
+    p.add_argument("--measured", help="public_data/specimen_panel_tpm.tsv (scripts/specimen_expression.py)")
     p.add_argument("--genes", help="order of the highlighted genes (default: as in the table)")
     p.add_argument("--frequency", help="public_data/dee_gene_frequency.tsv: how often each gene explains epilepsy")
     p.add_argument("--outdir", required=True)
@@ -72,8 +80,16 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     with open(args.atlas) as fh:
         rows = [r for r in csv.DictReader((l for l in fh if not l.startswith("#")), delimiter="\t")]
+    if args.measured and os.path.exists(args.measured):
+        with open(args.measured) as fh:
+            meas = {r["gene"]: r for r in csv.DictReader((l for l in fh if not l.startswith("#")), delimiter="\t")}
+        for r in rows:   # a gene missing from a dataset's matrix had no reads there: 0
+            m = meas.get(r["gene"], {})
+            for c in MEASURED[1:]:
+                r[c] = m.get(c, "0") if m.get(c, "NA") != "NA" else "0"
     cols = [c for c in SPEC if c in rows[0]]
     rows = [r for r in rows if all(r[c] != "NA" for c in cols)]
+    n_meas = sum(1 for c in cols if c in MEASURED)
     genes = [r["gene"] for r in rows]
     targets = [r["gene"] for r in rows if r["target"] == "True"]
     if args.genes:
@@ -85,8 +101,8 @@ def main():
 
     # ---- coverage
     brain = X[:, ci["Brain cortex"]] >= 10
-    fig, axes = plt.subplots(1, 2, figsize=(11.6, 3.9), gridspec_kw={"width_ratios": [1.4, 1]})
-    fig.subplots_adjust(left=0.07, right=0.98, bottom=0.3, top=0.86, wspace=0.25)
+    fig, axes = plt.subplots(1, 2, figsize=(12.4, 4.3), gridspec_kw={"width_ratios": [1.5, 1]})
+    fig.subplots_adjust(left=0.06, right=0.98, bottom=0.34, top=0.88, wspace=0.2)
     ax = axes[0]
     x = np.arange(len(cols))
     for k, (thr, alpha, lab) in enumerate(((1, 0.45, ">= 1 TPM"), (10, 1.0, ">= 10 TPM"))):
@@ -97,7 +113,8 @@ def main():
             ax.text(xi + (k - 0.5) * 0.38, vi + 1, "{:.0f}".format(vi), ha="center", fontsize=6.5)
         out += [("percent_ge{}".format(thr), c, round(vv, 1)) for c, vv in zip(cols, v)]
     ax.set_xticks(x)
-    ax.set_xticklabels([SPEC[c][0] for c in cols], rotation=35, ha="right", rotation_mode="anchor")
+    ax.set_xticklabels([SPEC[c][0] + (" *" if c not in MEASURED else "") for c in cols], rotation=40, ha="right",
+                       rotation_mode="anchor", fontsize=8)
     ax.set_ylim(0, 105)
     ax.set_ylabel("% of panel genes")
     ax.set_title("a  {} panel genes: light >= 1 TPM, dark >= 10 TPM".format(len(genes)), loc="left", fontsize=10,
@@ -112,14 +129,19 @@ def main():
     for k, i in enumerate(order):
         ax.text(k, v[i] + 1, "{:.0f}%".format(v[i]), ha="center", fontsize=8)
     ax.set_xticks(range(len(acc)))
-    ax.set_xticklabels([SPEC[acc[i]][0] for i in order], rotation=35, ha="right", rotation_mode="anchor")
+    ax.set_xticklabels([SPEC[acc[i]][0] + (" *" if acc[i] not in MEASURED else "") for i in order], rotation=40,
+                       ha="right", rotation_mode="anchor", fontsize=8)
     ax.set_ylim(0, 105)
     ax.set_ylabel("% also >= 10 TPM")
     ax.set_title("b  The {} panel genes expressed in brain cortex".format(int(brain.sum())), loc="left", fontsize=10,
                  fontweight="bold")
     classic(ax)
     out += [("brain_expressed_genes", "", int(brain.sum()))]
+    out += [("brain_expressed_recovered_percent_all", c, round((X[brain, ci[c]] >= 10).mean() * 100, 1))
+            for c in cols if not c.startswith("Brain")]
     out += [("brain_expressed_recovered_percent", acc[i], round(v[i], 1)) for i in order]
+    fig.text(0.07, 0.01, "* GTEx tissue (brain, or standing in for a specimen without an open dataset); others: "
+                         "measured in the specimen (GEO)", fontsize=7.5, color="#555555")
     save(fig, os.path.join(args.outdir, "atlas_coverage"))
 
     # ---- reach: how many accessible specimens express each brain-expressed gene; best one and two specimens
@@ -169,11 +191,13 @@ def main():
     acc_n = expr.sum(axis=1)
     order = sorted(range(len(genes)), key=lambda i: (-acc_n[i], -X[i, ci["Brain cortex"]]))
     L = np.log10(X[order] + 1)
-    fig = plt.figure(figsize=(7.4, 8.6))
-    ax = fig.add_axes([0.08, 0.17, 0.62, 0.78])
+    fig = plt.figure(figsize=(8.4, 9.6))
+    ax = fig.add_axes([0.08, 0.25, 0.66, 0.72])
     im = ax.imshow(L, aspect="auto", cmap=HEAT, vmin=0, vmax=3, interpolation="nearest")
     ax.set_xticks(range(len(cols)))
-    ax.set_xticklabels([SPEC[c][0] for c in cols], rotation=40, ha="right", rotation_mode="anchor")
+    ax.set_xticklabels(["{} ({})".format(SPEC[c][0], SPEC[c][1]) for c in cols], rotation=50, ha="right",
+                       rotation_mode="anchor", fontsize=7.5)
+    ax.axvline(1.5 + n_meas, color="black", lw=1, ls="--")
     ax.set_yticks([])
     ax.set_ylabel("{} panel genes, grouped by the number of accessible specimens >= 10 TPM".format(len(genes)))
     ax.axvline(1.5, color="black", lw=1)
@@ -189,16 +213,16 @@ def main():
         ax.annotate(g, xy=(len(cols) - 0.5, pos[g]), xytext=(len(cols) + 0.9, ytxt), fontsize=8, fontstyle="italic",
                     va="center", annotation_clip=False,
                     arrowprops=dict(arrowstyle="-", color="#2166AC", lw=0.7))
-    cax = fig.add_axes([0.08, 0.05, 0.35, 0.018])
+    cax = fig.add_axes([0.08, 0.045, 0.35, 0.013])
     cb = fig.colorbar(im, cax=cax, orientation="horizontal")
     cb.set_label("log10(median TPM + 1)", fontsize=8)
     save(fig, os.path.join(args.outdir, "atlas_heatmap"))
 
     # ---- each accessible specimen vs brain cortex
-    acc2 = [c for c in ["Nasal brushing", "Lung"] + ACCESSIBLE[1:] if c in ci]
-    nc = 4
+    acc2 = [c for c in ACCESSIBLE if c in ci]
+    nc = 5
     nr = int(np.ceil(len(acc2) / nc))
-    fig, axes = plt.subplots(nr, nc, figsize=(12.0, 3.0 * nr), squeeze=False)
+    fig, axes = plt.subplots(nr, nc, figsize=(13.0, 2.9 * nr), squeeze=False)
     fig.subplots_adjust(left=0.06, right=0.99, bottom=0.1, top=0.93, wspace=0.28, hspace=0.45)
     bx = np.log10(X[:, ci["Brain cortex"]] + 1)
     for ax, c in zip(axes.flat, acc2):
@@ -219,7 +243,8 @@ def main():
         ax.axhline(np.log10(11), color="#BBBBBB", lw=0.6)
         ax.set_xlim(0, 3.6)
         ax.set_ylim(0, 3.6)
-        ax.set_title("{} (rho {:.2f})".format(SPEC[c][0], rho), fontsize=9, loc="left")
+        ax.set_title("{}{} (rho {:.2f})".format(SPEC[c][0], "" if c in MEASURED else " *", rho), fontsize=9,
+                     loc="left")
         ax.set_xlabel("Brain cortex, log10(TPM + 1)", fontsize=8)
         ax.set_ylabel("log10(TPM + 1)", fontsize=8)
         classic(ax)
@@ -231,9 +256,9 @@ def main():
     # ---- highlighted genes x specimens
     if targets:
         T = np.array([X[genes.index(g)] for g in targets])
-        h = 0.42 * len(targets) + 1.5
-        fig, ax = plt.subplots(figsize=(9.6, h))
-        fig.subplots_adjust(left=0.1, right=0.92, bottom=1.25 / h, top=1 - 0.1 / h)
+        h = 0.42 * len(targets) + 1.9
+        fig, ax = plt.subplots(figsize=(12.4, h))
+        fig.subplots_adjust(left=0.08, right=0.94, bottom=1.45 / h, top=1 - 0.1 / h)
         im = ax.imshow(np.log10(T + 1), aspect="auto", cmap=HEAT, vmin=0, vmax=2.6)
         for i in range(len(targets)):
             for j in range(len(cols)):
@@ -245,7 +270,8 @@ def main():
         ax.set_yticks(range(len(targets)))
         ax.set_yticklabels(targets, fontstyle="italic")
         ax.set_xticks(range(len(cols)))
-        ax.set_xticklabels(["{}\n({})".format(SPEC[c][0], SPEC[c][1]) for c in cols], rotation=35, ha="right",
+        ax.axvline(1.5 + n_meas, color="black", lw=1, ls="--")
+        ax.set_xticklabels(["{}\n({})".format(SPEC[c][0], SPEC[c][1]) for c in cols], rotation=40, ha="right",
                            rotation_mode="anchor", fontsize=8)
         ax.axvline(1.5, color="black", lw=1)
         cb = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)

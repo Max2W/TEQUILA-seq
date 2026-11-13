@@ -94,6 +94,7 @@ deck_args+=(--public-figures "${FIG}/public" --nasal-figures "${FIG}/nasal" --ex
 mapfile -t EXTRA_GENES < <(sed 's/#.*//' "${ANALYSIS_DIR}/extra_genes.txt" 2>/dev/null | awk 'NF {print $1}')
 extra_csv="$(IFS=,; echo "${EXTRA_GENES[*]}")"
 python "${ANALYSIS_DIR}/scripts/panel_atlas_figures.py" --atlas "${ANALYSIS_DIR}/public_data/panel_expression_atlas.tsv" \
+  --measured "${ANALYSIS_DIR}/public_data/specimen_panel_tpm.tsv" \
   --genes "${genes_csv}${extra_csv:+,${extra_csv}}" --frequency "${ANALYSIS_DIR}/public_data/dee_gene_frequency.tsv" \
   --outdir "${FIG}/atlas"
 deck_args+=(--atlas-figures "${FIG}/atlas")

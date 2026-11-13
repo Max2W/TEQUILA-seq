@@ -1,0 +1,6 @@
+dataset	specimen	geo	samples	panel_genes_found
+buccal	Buccal brushing	GSE330022	24	612
+nasal_kids	Nasal brushing, children	GSE118761	14	622
+hair	Plucked hair follicles	GSE224010	5	633
+blood	Whole blood (PAXgene)	GSE112087	29	630
+urine	Urine-derived cells (cultured)	GSE235813	37	633

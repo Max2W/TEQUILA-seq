@@ -3,9 +3,10 @@
 
 Sources:
   GTEx v8 gene median TPM (GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_median_tpm.gct.gz): brain and the GTEx tissue
-    closest to each accessible specimen
+    closest to each accessible specimen; each tissue rescaled so that its protein-coding genes sum to 1e6
   GEO GSE152004 (Sajuthi et al., Nat Commun 2020): raw counts of 695 nasal airway epithelial brushings, turned into TPM
-    with the length of each gene's merged exons in the GENCODE annotation (--gtf); median across samples
+    with the length of each gene's merged exons in the GENCODE annotation (--gtf), scaled over protein-coding genes
+    (as in scripts/specimen_expression.py); median across samples
 Output (committed under public_data/): panel_expression_atlas.tsv, one row per panel gene with the median TPM in
 each column, plus whether the gene is a highlighted target.
 """
@@ -34,6 +35,9 @@ def lookup(table, gene):
     return None
 
 
+CODING = set()
+
+
 def exon_lengths(gtf):
     iv = defaultdict(list)
     with gzip.open(gtf, "rt") as fh:
@@ -45,6 +49,8 @@ def exon_lengths(gtf):
                 continue
             name = f[8].split('gene_name "', 1)[1].split('"', 1)[0]
             iv[(name, f[0])].append((int(f[3]) - 1, int(f[4])))
+            if 'gene_type "protein_coding"' in f[8]:
+                CODING.add(name)
     length = {}
     for (name, _), v in iv.items():
         v.sort()
@@ -70,21 +76,26 @@ def main():
     p.add_argument("--out", required=True)
     a = p.parse_args()
     panel = [l.strip() for l in open(a.panel) if l.strip() and not l.startswith("#")]
+    length = exon_lengths(a.gtf)
     gtex = pd.read_csv(a.gtex_gct, sep="\t", skiprows=2)
     gtex = gtex.groupby("Description").max(numeric_only=True)
+    # rescale each tissue's median TPM over protein-coding genes, as for the nasal and specimen data
+    gc = gtex.index.isin(CODING)
+    gtex = gtex * (1e6 / gtex[gc].sum(axis=0))
     counts = pd.read_csv(a.nasal_counts, sep="\t", index_col=0)
-    length = exon_lengths(a.gtf)
     lens = pd.Series({g: length.get(g, length.get(next((n for n, olds in OLD.items() if g in olds), ""), np.nan))
                       for g in counts.index})
-    keep = lens.notna() & (lens > 0)
+    coding = pd.Series([g in CODING or any(g in olds for n, olds in OLD.items() if n in CODING)
+                        for g in counts.index], index=counts.index)
+    keep = lens.notna() & (lens > 0) & coding
     rpk = counts[keep].div(lens[keep] / 1000, axis=0)
     tpm = rpk.div(rpk.sum(axis=0), axis=1) * 1e6
     nasal_med, nasal_det = tpm.median(axis=1), (counts > 0).mean(axis=1) * 100
     print("nasal TPM from {} of {} genes with a GENCODE exon length".format(int(keep.sum()), len(counts)))
     targets = a.genes.split(",")
     with open(a.out, "w") as fh:
-        fh.write("# Median TPM per panel gene. GTEx v8 gene median TPM; nasal brushings: GEO GSE152004 (n = {}), TPM "
-                 "from raw counts and GENCODE merged-exon lengths. NA: gene not found. Made by "
+        fh.write("# Median TPM per panel gene, scaled over protein-coding genes. GTEx v8 gene median TPM; nasal brushings: GEO GSE152004 (n = {}), TPM "
+                 "from raw counts and GENCODE merged-exon lengths, over protein-coding genes. NA: gene not found. Made by "
                  "scripts/panel_atlas.py.\n".format(counts.shape[1]))
         fh.write("gene\ttarget\t" + "\t".join(c for c, _ in COLUMNS) + "\tNasal brushing\tnasal_percent_detected\n")
         for g in panel:
