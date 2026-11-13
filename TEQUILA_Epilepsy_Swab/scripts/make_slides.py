@@ -66,6 +66,8 @@ def parse_args():
     p.add_argument("--full-figures", help="figures of scripts/full_path_figures.py (all reads aligned)")
     p.add_argument("--expression-figures", help="figures of scripts/expression_qc.py (11_expression_qc.sh)")
     p.add_argument("--variant-figures", help="figures of scripts/variant_coverage.py")
+    p.add_argument("--rin-figures", help="figures of scripts/rin_figures.py")
+    p.add_argument("--sex-figures", help="figures of scripts/sex_check.py")
     p.add_argument("--out", required=True)
     return p.parse_args()
 
@@ -300,6 +302,7 @@ def main():
         items.append("Full length = the read reaches the first and the last exon of the canonical (MANE) transcript")
         D.bullets(s, items, 8.8, 1.8, 4.2, 4.8, size=15)
 
+    rin_slide(D, args, genes)
     if args.variant_figures and os.path.isdir(args.variant_figures):
         variant_slides(D, args, genes, samples)
 
@@ -435,6 +438,44 @@ def full_path_slides(D, args, genes, samples, fast_filt):
                  "Both count the gene's reads the same way, so the fast-path numbers in this deck are complete"]
         D.bullets(s, items, 8.8, 1.7, 4.3, 5.0, size=15)
     expression_slides(D, args, genes, "samples")
+    sex_slide(D, args)
+
+
+def rin_slide(D, args, genes):
+    rf = args.rin_figures
+    p = os.path.join(rf, "rin_integrity.png") if rf else ""
+    if not p or not os.path.exists(p):
+        return
+    rows = read_tsv(os.path.join(rf, "rin_integrity.tsv"))
+    rin = {r["sample_id"]: float(r["value"]) for r in rows if r["measure"] == "RIN"}
+    top = max(rin, key=rin.get)
+    s = D.slide("RIN of the swabs and the read-level integrity of {}".format(" and ".join(genes)), size=28)
+    D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.8)
+    items = ["RIN {} (mean {:.1f}); highest: {} ({:.1f})".format(fmt_range(list(rin.values()), 1),
+                                                                 sum(rin.values()) / len(rin), top.replace("_", " "),
+                                                                 rin[top])]
+    for r in rows:
+        if r["measure"].startswith("spearman_rho_median_tx_coverage"):
+            items.append("{}: Spearman rho between RIN and median transcript coverage of a read = {}".format(
+                r["gene"], r["value"]))
+    items.append("n = 8 swabs; correlations are exploratory")
+    D.bullets(s, items, 0.5, 5.35, SW - 1.0, 1.6, size=14)
+
+
+def sex_slide(D, args):
+    sf = args.sex_figures
+    p = os.path.join(sf, "sex_check.png") if sf else ""
+    if not p or not os.path.exists(p):
+        return
+    rows = read_tsv(os.path.join(sf, "sex_check.tsv"))
+    donors = {r["donor"]: r["donor_swabs_agree"] == "True" for r in rows}
+    s = D.slide("Sample identity check: sex-marker expression agrees between the two swabs of {} of {} donors".format(
+        sum(donors.values()), len(donors)), size=26)
+    D.picture(s, p, 0.8, 1.5, 6.0, 5.0)
+    D.bullets(s, ["XIST against Y-linked genes (RPS4Y1, DDX3Y, KDM5D, UTY, EIF1AY, USP9Y, ZFY), counts per million "
+                  "from all reads",
+                  "The two swabs of a donor should fall together: a split would point to a sample swap"],
+              7.2, 1.8, 5.7, 4.5, size=15)
 
 
 def variant_slides(D, args, genes, samples):
@@ -540,7 +581,8 @@ def public_slides(D, args, genes, samples):
     rins = []
     if args.rin and os.path.exists(args.rin):
         rins = [float(r["RIN"]) for r in read_tsv(args.rin) if r.get("RIN") and r["sample_id"] in samples]
-    ours = ("This pilot: RIN {} across {} swabs".format(fmt_range(rins, 1), len(rins)) if rins
+    ours = ("This pilot: RIN {} across {} swabs, mean {:.1f}; all well below RIN 7, like the published buccal "
+            "swabs (mean 2.5)".format(fmt_range(rins, 1), len(rins), sum(rins) / len(rins)) if rins
             else "This pilot: swab RNA RIN about 1-3 (per-sample values to be added)")
     cite = ("Martorella M, et al. Evaluation of noninvasive biospecimens for transcriptome studies. BMC Genomics. "
             "2023;24:790.")
@@ -548,8 +590,12 @@ def public_slides(D, args, genes, samples):
     if os.path.exists(p):
         b_rin = mart[("mean_RIN", "Buccal swab")]["value"]
         q = mart[("illumina_preseq_qc", "Buccal swab")]
-        s = D.slide("Buccal swab RNA is highly degraded in published data too: mean RIN {}, and {} of {} swabs failed "
-                    "standard library QC".format(b_rin, q["n_fail"], q["n_total"]), size=26)
+        if rins:
+            s = D.slide("Our swab RNA is as degraded as reported for buccal swabs: RIN {} (mean {:.1f}) here, mean {} "
+                        "in Martorella et al. 2023".format(fmt_range(rins, 1), sum(rins) / len(rins), b_rin), size=26)
+        else:
+            s = D.slide("Buccal swab RNA is highly degraded in published data too: mean RIN {}, and {} of {} swabs "
+                        "failed standard library QC".format(b_rin, q["n_fail"], q["n_total"]), size=26)
         D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.6)
         D.bullets(s, [
             "{} healthy donors sampled 3-4 times: buccal swab, saliva, hair follicles and urine; short-read RNA-seq"

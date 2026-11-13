@@ -64,8 +64,9 @@ python "${ANALYSIS_DIR}/scripts/deck_figures.py" --genes "${genes_csv}" --gtf "$
 
 # public data and literature figures (inputs committed under public_data/; optional rin.tsv of this pilot)
 rin_args=(); rin_slide=()
-if [[ -s "${ANALYSIS_DIR}/rin.tsv" ]]; then
-  rin_args=(--our-rin "${ANALYSIS_DIR}/rin.tsv"); rin_slide=(--rin "${ANALYSIS_DIR}/rin.tsv")
+RIN_TSV="${PROJECT_DIR}/rin.tsv"   # sample_id, RIN; sample data: kept on scratch, not in the repository
+if [[ -s "${RIN_TSV}" ]]; then
+  rin_args=(--our-rin "${RIN_TSV}"); rin_slide=(--rin "${RIN_TSV}")
 fi
 python "${ANALYSIS_DIR}/scripts/public_data_figures.py" --public-dir "${ANALYSIS_DIR}/public_data" \
   --genes "${genes_csv}" "${rin_args[@]}" --outdir "${FIG}/public"
@@ -100,6 +101,20 @@ else
   echo "[slides] no ${QC_DIR}/per_sample_qc.tsv (07_qc_full.sh): full-path slides left out"
 fi
 
+# RIN against read-level integrity; sex-marker sample identity check (needs 11_expression_qc.sh)
+extra_args=()
+if [[ -s "${RIN_TSV}" && -s "${RESULTS_DIR}/fragmentation/filtered/fragmentation_summary.tsv" ]]; then
+  python "${ANALYSIS_DIR}/scripts/rin_figures.py" --rin "${RIN_TSV}" \
+    --fragmentation "${RESULTS_DIR}/fragmentation/filtered/fragmentation_summary.tsv" --sample-sheet "${SAMPLE_SHEET}" \
+    --martorella "${ANALYSIS_DIR}/public_data/martorella2023_summary.tsv" --genes "${genes_csv}" --outdir "${FIG}/rin"
+  extra_args+=(--rin-figures "${FIG}/rin")
+fi
+if [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then
+  python "${ANALYSIS_DIR}/scripts/sex_check.py" --counts "${QC_DIR}/expression/gene_counts.tsv" \
+    --sample-sheet "${SAMPLE_SHEET}" --outdir "${FIG}/sex_check"
+  extra_args+=(--sex-figures "${FIG}/sex_check")
+fi
+
 # coverage of known patient variants: the variant table holds patient information and is kept on scratch, never in
 # the repository (${PROJECT_DIR}/variants/patient_variants.tsv)
 var_args=()
@@ -124,6 +139,6 @@ run_label="$(IFS=';'; echo "${labels[*]}" | sed 's/;/; /g')"
 mkdir -p "${RESULTS_DIR}/slides"
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
-  --public-figures "${FIG}/public" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" \
+  --public-figures "${FIG}/public" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" \
   --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
 echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"

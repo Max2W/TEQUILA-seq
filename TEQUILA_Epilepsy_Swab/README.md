@@ -207,8 +207,13 @@ When the full path has run (`07_qc_full.sh`), step 10 also applies the gene read
 - the genes collecting the most reads;
 - how many gene reads the k-mer baiting of the fast path recovered.
 
-To add this pilot's RIN values to that figure and slide, put a `rin.tsv` (columns `sample_id`, `RIN`) in this folder
-and run step 10 again.
+With `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/rin.tsv` (columns `sample_id`, `RIN`; sample data, kept on scratch),
+step 10 adds:
+- the pilot's RIN to the public-data RIN figure and slide;
+- RIN against the read-level integrity of the target genes (`scripts/rin_figures.py`).
+
+When step 11 has run, step 10 also adds a sex-marker sample identity check (`scripts/sex_check.py`; XIST against
+Y-linked genes; the two swabs of a donor must agree). Its output stays with the results on scratch.
 
 ### Patient variant coverage (step 10)
 
