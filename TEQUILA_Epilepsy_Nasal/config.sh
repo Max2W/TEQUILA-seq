@@ -70,8 +70,8 @@ fi
 # genes reported under results/internal_control/<GENE>/ instead of results/<GENE>/
 CONTROL_GENES=()
 
-# Isoform report: the stabilisers are compared, paired by donor, against this one
-REFERENCE_CONDITION="Zymo"
+# Isoform report: the brush is compared, paired by donor, against the swab
+REFERENCE_CONDITION="Swab"
 
 # ---------------------------------------------------------------------------
 # Fast path: FIRE k-mer bait -> targeted alignment -> ESPRESSO + AMALGAM

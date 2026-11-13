@@ -219,25 +219,26 @@ def main():
     tf.word_wrap, tf.vertical_anchor = True, MSO_ANCHOR.MIDDLE
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.CENTER
-    D.runs(p, "Targeted long-read RNA sequencing of epilepsy genes in nasal swab RNA", 40, bold=True)
+    D.runs(p, "Targeted long-read RNA sequencing of epilepsy genes in nasal epithelial RNA", 40, bold=True)
     p = tf.add_paragraph()
     p.alignment = PP_ALIGN.CENTER
     p.space_before = Pt(18)
-    D.runs(p, "TEQUILA-seq nasal pilot: {} in {} donors, {} stabilisers".format(
+    D.runs(p, "TEQUILA-seq nasal pilot: {} in {} donors, {} sampling devices".format(
         " and ".join(genes), len({r["donor"] for r in sheet}), len(kits)), 20, color=GREY)
 
     # 2. study design
-    s = D.slide("Study design: nasal swabs of the buccal-swab donors, in two stabilisers")
-    rows = [["Sample", "Donor", "Swab, stabiliser + RNA extraction", "Barcode"]] + [
+    s = D.slide("Study design: a nasal swab and a nasal brush from each buccal-swab donor")
+    rows = [["Sample", "Donor", "Device, site, stabiliser + RNA extraction", "Barcode"]] + [
         [r["sample_id"].replace("_", " "), r["donor"], r["treatment"], r["barcode"].replace("barcode", "NB")]
         for r in sheet]
     D.table(s, rows, 0.5, 1.7, 7.4, [1.3, 0.8, 4.3, 1.0], size=12)
-    D.bullets(s, ["Questions for nasal swab RNA:",
+    D.bullets(s, ["Questions for nasal RNA:",
                   (1, "Are {} detected, and at what depth?".format(" and ".join(genes))),
                   (1, "How much of each transcript do the reads cover? Are any reads full length?"),
                   (1, "Is it more intact than the same donors' buccal swab RNA?"),
-                  (1, "Which isoforms and splicing events can be measured, and do the stabilisers differ?"),
-                  "Stabilisers and specimens compared within donor (paired, n = {})".format(len({r["donor"] for r in sheet}))],
+                  (1, "Is the swab enough, or is the brush needed for intact RNA?"),
+                  (1, "Which isoforms and splicing events can be measured?"),
+                  "Devices and specimens compared within donor (paired, n = {})".format(len({r["donor"] for r in sheet}))],
               8.3, 1.7, 4.6, 4.5, size=16)
 
     if args.public_figures and os.path.isdir(args.public_figures):
@@ -246,12 +247,12 @@ def main():
     # 3. sequencing (reads per sample)
     path = os.path.join(deck_dir, "reads_per_sample.png")
     if os.path.exists(path):
-        s = D.slide("Targeted long-read RNA sequencing of {} in nasal swabs".format(" and ".join(genes)))
+        s = D.slide("Targeted long-read RNA sequencing of {} in nasal swabs and brushes".format(" and ".join(genes)))
         D.picture(s, path, 2.2, 1.45, 8.9, 3.85)
         per = [total[x] / 1e6 for x in samples]
         D.bullets(s, [
             "Prepared a multiplexed TEQUILA-seq library ({}-gene epilepsy and neurodevelopmental disorder probe "
-            "panel; genes of interest {}) from nasal swab RNA of {} donors collected into {} stabilisers ({}), based on "
+            "panel; genes of interest {}) from nasal epithelial RNA of {} donors collected with {} devices ({}), based on "
             "ONT sequencing kit SQK-NBD114.24".format(
                 panel_size(), " and ".join(genes), len({r["donor"] for r in sheet}), len(kits),
                 "; ".join("{}: {}".format(k, kit_text[k]) for k in kits)),
@@ -612,7 +613,7 @@ def comparison_slide(D, args, genes):
         title = "Nasal vs buccal swabs in the same donors"
     s = D.slide(title, size=26)
     D.picture(s, p, 0.3, 1.4, SW - 0.6, 5.4)
-    D.note(s, "Each line joins one donor's samples; nasal stabilisers on the left, buccal swab kits on the right",
+    D.note(s, "Each line joins one donor's samples; nasal swab and brush on the left, buccal swab kits on the right",
            size=11)
 
 
@@ -719,7 +720,7 @@ def expression_slides(D, args, genes, part):
             ("pca", "Samples cluster by {} in gene expression", "PCA of log2(CPM + 1); genes with CPM >= 1 in at "
              "least 2 swabs; all reads aligned (full path)"),
             ("correlation", "Gene expression correlation between swabs", "Pearson correlation of log2(CPM + 1)"),
-            ("kit_scatter", "Panel gene expression, Zymo against Genotek, per donor",
+            ("kit_scatter", "Panel gene expression, brush against swab, per donor",
              "Each point is a panel gene; log2(CPM + 1); dashed line: equal expression")):
         p = os.path.join(ef, name + ".png")
         if part != "samples" or not os.path.exists(p):

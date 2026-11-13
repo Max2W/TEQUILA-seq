@@ -1,4 +1,4 @@
-# TEQUILA-seq: epilepsy genes in nasal swab RNA (pilot)
+# TEQUILA-seq: epilepsy genes in nasal epithelial RNA (pilot)
 
 **Status: planned.** Samples are not collected yet. The run folder and barcodes read `SET_ME` in `config.sh` and
 `samples.tsv`, and step 01 stops with a message until they are set.
@@ -11,32 +11,41 @@ fragmented for full-length isoforms. The literature points to the nose as the be
   (GEO GSE152004; median 37 CPM for STXBP1 and 71 CPM for SYNGAP1). Figures: `scripts/nasal_literature_figures.py`,
   with numbers in `public_data/`.
 
-This pilot uses the swab kits already in the lab: the Zymo R1107 kit contains a flocked swab, and Zymo lists the
-nose as a sample site. Questions:
+This pilot compares the two ways of sampling the nose in the same donors:
+- **Flocked swab:** the Zymo R1107 swab already in the lab. Zymo lists the nose as a sample site. No adult RIN is
+  published for a flocked swab on the turbinate; the nearest figures are an average RIN of about 4.1 for flocked
+  nasal swabs from children, and adequate RNA in 43% of adult mid-turbinate swabs.
+- **Cytology brush:** the device behind the published high RINs. The brush is new; the stabiliser is the Zymo
+  DNA/RNA Shield tube already in hand.
 
-1. **Integrity.** Is nasal swab RNA more intact than the same donor's buccal swab RNA (RIN, transcript coverage,
+Questions:
+
+1. **Integrity.** Is nasal RNA more intact than the same donor's buccal swab RNA (RIN, transcript coverage,
    full-length reads)?
-2. **Detection.** Are the target genes and the panel detected, at what depth, and how many patient variants are
+2. **Device.** Is the flocked swab enough, or is the brush needed for intact RNA?
+3. **Detection.** Are the target genes and the panel detected, at what depth, and how many patient variants are
    covered?
-3. **Stabiliser.** Does the Genotek stabiliser do as well as Zymo DNA/RNA Shield for nasal swabs?
 
 ## Samples
 
 Same donors A-D as the buccal pilot, one session each, one nostril per sample:
 
-| sample_id | donor | swab and site | stabiliser | RNA extraction | condition |
+| sample_id | donor | device and site | stabiliser | RNA extraction | condition |
 |---|---|---|---|---|---|
-| Zymo_A ... Zymo_D | A-D | Zymo R1107 flocked swab, inferior turbinate, left | Zymo DNA/RNA Shield (1 mL, kit tube) | Zymo Quick-RNA Microprep | Zymo |
-| Genotek_A ... Genotek_D | A-D | Zymo R1107 flocked swab, inferior turbinate, right | Genotek OR-100 tube (sponge not used) | Qiagen miRNeasy | Genotek |
+| Swab_A ... Swab_D | A-D | Zymo R1107 flocked swab, inferior turbinate, left | DNA/RNA Shield (1 mL, kit tube) | Zymo Quick-RNA Microprep | Swab |
+| Brush_A ... Brush_D | A-D | CytoSoft cytology brush (Medical Packaging CYB1, sterile), under the inferior turbinate, right | DNA/RNA Shield (1 mL, a Zymo R1107 tube) | Zymo Quick-RNA Microprep | Brush |
 
-Sample IDs match the buccal pilot (`<condition>_<donor>`). Step 10 therefore draws each donor's nasal and buccal
-samples side by side (`scripts/compare_specimens.py`, read only on `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab`).
+Both arms use the same stabiliser and extraction, so only the device differs. The sample IDs end in the same donor
+letter as the buccal pilot. Step 10 therefore draws each donor's nasal and buccal samples side by side
+(`scripts/compare_specimens.py`, read only on `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab`).
 
-**Check the Genotek arm on the bench first,** with one spare kit:
-- The OR-100 sponge is for the mouth and is not for the nose.
-- Break a Zymo swab at its breakpoint into the Genotek tube, cut the sponge off the Genotek cap, and close it.
-- If the swab does not fit or the cap does not seal, use a second Zymo kit for the right nostril instead, and set
-  `condition` to `Zymo2`.
+**Brush:**
+- **Product:** CytoSoft Cytology Brush, sterile, manufacturer number CYB1 (Fisher Scientific 22-263357; Cardinal
+  Health S7766-1A). A clinical trial protocol (NCT02005627) uses it for inferior turbinate brushing.
+- **Off-label use:** it is cleared for cervical cytology, and its use in the nose must be named in the IRB protocol.
+- **Check on the bench first** that the brush head fits a Zymo tube once the handle is cut, and that the cap seals.
+- **Untested combination:** published brush RINs used RNAlater (Pandey 2018, mean RIN 7.8) or lysis buffer
+  (NCT02005627). A brush in DNA/RNA Shield has no published RIN, which this pilot will show.
 
 ## Collection (adult lab donors)
 
@@ -46,33 +55,38 @@ Each step names its source. Sources are in `public_data/nasal_literature.tsv` an
    by about 2 weeks). Also do not sample anyone with nosebleeds, a bleeding disorder or anticoagulants, or nasal
    surgery or polyps.
 2. **Prepare.** The donor blows their nose gently (Brewington 2018). They sit with the head slightly back, under
-   good light.
-3. **Left nostril, Zymo tube.**
-   - Insert the flocked swab along the floor of the nostril, parallel to the palate, towards the inferior
-     turbinate (the lower fold on the side wall). Stop at gentle resistance and do not force it.
+   good light. For the brush, a nasal speculum shows the inferior turbinate (Lai 2015). The trial protocol offered
+   a lidocaine spray, which needs a clinician.
+3. **Left nostril, flocked swab.**
+   - Insert the swab along the floor of the nostril, parallel to the palate, towards the inferior turbinate (the
+     lower fold on the side wall). Stop at gentle resistance and do not force it.
    - Press the tip against the turbinate and rotate it for 3-5 s, moving it slightly in and out 4-5 times (Chu
      2016; Brewington 2018).
-4. **Store at once.** Put the swab straight into its tube, break it at the breakpoint, close the cap and invert
-   5 times.
-5. **Right nostril, Genotek tube (or the second Zymo kit).** Take a new swab the same way. Do not sample the same
-   nostril twice (Ulm 2016).
-6. **Record:**
-   - time of collection and side;
-   - discomfort from 0 to 10 (the scale of Lai 2015, where turbinate brushing scored a median of 3.5);
-   - blood on the swab, and any nosebleed;
+   - Put it straight into its tube, break it at the breakpoint, close the cap and invert 5 times.
+4. **Right nostril, cytology brush** (NCT02005627 protocol, section 6.5.10):
+   - Insert the brush through the nasal vestibule, along the floor of the nose and the septum, to the depth of the
+     inferior turbinate.
+   - Roll it under the turbinate, then brush for about 4 s, rotating and moving in and out with gentle pressure on
+     the turbinate wall.
+   - Roll it away from the turbinate and remove it.
+   - Swirl it in the Zymo tube for 4 s, cut the handle so that the brush fits, close the cap and invert.
+   - Use the other nostril, never the same one twice (Ulm 2016).
+5. **Record:**
+   - time of collection, side and device;
+   - discomfort from 0 to 10 (the scale of Lai 2015: turbinate brushing scored a median of 3.5, front-of-nose
+     sampling 1);
+   - blood on the swab or brush, and any nosebleed;
    - watch the donor for 5 minutes (Chu 2016).
-7. **Storage.** Keep the Zymo tubes at room temperature (Zymo states RNA stability for at least 1 month). Keep the
-   Genotek tubes at room temperature and not at 4 C (Genotek). Extract both on the same day, within a week.
+6. **Storage.** Keep both tubes at room temperature (Zymo states RNA stability for at least 1 month). Extract both
+   on the same day, within a week.
 
 ## RNA extraction and QC
 
-- **Zymo tube:**
+- **Both tubes, same procedure:**
   - Use the whole 1 mL of DNA/RNA Shield. The nasal cell pellet is small and the Shield dilutes it.
   - Optionally digest with Proteinase K in the Shield first. Then add 1 volume of RNA Lysis Buffer and load the
     Quick-RNA Microprep column in several passes.
   - Do the on-column DNase I step, and elute in about 15 uL.
-- **Genotek tube:** use the same Qiagen miRNeasy procedure as for the buccal Genotek swabs, so that only the
-  sampling site changes.
 - **QC:**
   - RIN on a high-sensitivity chip, and yield by Qubit RNA HS.
   - Write the RIN values to `/scr1/users/wangf3/TEQUILA_Epilepsy_Nasal/rin.tsv` (columns `sample_id`, `RIN`).
@@ -95,16 +109,20 @@ protocol.
 
 ## Decision rules (set before the data)
 
-The nasal swab is taken forward to children when, in at least 3 of 4 donors, it beats the same donor's buccal swab
-on all of these:
+A device is taken forward to children when, in at least 3 of 4 donors, it beats the same donor's buccal swab on all
+of these:
 - STXBP1 median transcript coverage per read and full-length STXBP1 reads per million are higher (step 08 /
   `compare_specimens.py`);
 - RIN is at least 2 units higher;
 - STXBP1 and SYNGAP1 gene reads per million are not more than 2-fold lower;
 - discomfort is 3 or less, and no nosebleed needs treatment.
 
-If integrity does not improve, the next test is a cytology brush on the inferior turbinate (Lai 2015: RIN 8.9 vs 1.1
-for a swab at the front of the nose). It needs brushes bought.
+Outcomes:
+- **Both pass:** use the flocked swab, which is gentler and works at every age.
+- **Only the brush passes:** brush from 5 years, or during an anaesthetic given for another reason. Use the swab
+  only where the brush is not possible.
+- **Neither passes:** nasal sampling is not worth taking forward. Look again at the options kept for later (blood,
+  skin biopsy, urine cells).
 
 ## Genes
 
@@ -150,7 +168,7 @@ sample it reports:
 - a **gene-body coverage curve** (5' -> 3'). RNA that is fragmented and captured from the 3' end
   shows coverage falling toward the 5' end.
 
-The isoform reports compare Genotek with Zymo, paired by donor (n = 4).
+The isoform reports compare the brush with the swab, paired by donor (n = 4).
 
 ## Running on the HPC, step by step
 
