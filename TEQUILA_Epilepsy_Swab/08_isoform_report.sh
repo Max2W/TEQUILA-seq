@@ -63,7 +63,7 @@ for gene in "${TARGET_GENES[@]}"; do
   for method in ESPRESSO_fast AMALGAM_fast ESPRESSO_full AMALGAM_full; do
     [[ -d "${gdir}/${method}" ]] && runs+=(--run "${method}=${gdir}/${method}")
   done
-  if (( ${#runs[@]} >= 4 )); then
+  if (( ${#runs[@]} >= 4 )); then  # two or more runs (each --run is two words)
     python "${ANALYSIS_DIR}/scripts/compare_methods.py" --gene "${gene}" "${runs[@]}" \
       --out-prefix "${gdir}/method_comparison" || true
   fi

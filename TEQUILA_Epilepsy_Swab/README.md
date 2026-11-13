@@ -200,6 +200,12 @@ The deck also has public-data slides from `scripts/public_data_figures.py`. Thei
 - GTEx v10 and Human Protein Atlas expression of both genes;
 - swab RNA quality from Martorella et al., BMC Genomics 2023: RIN, library QC failures and OMIM gene capture.
 
+When the full path has run (`07_qc_full.sh`), step 10 also applies the gene read filter to the genome-wide BAMs
+(`results/figures/full_read_filter.tsv`). It adds capture QC slides from `scripts/full_path_figures.py`:
+- mapping rate, on-target rate and read length;
+- the genes collecting the most reads;
+- how many gene reads the k-mer baiting of the fast path recovered.
+
 To add this pilot's RIN values to that figure and slide, put a `rin.tsv` (columns `sample_id`, `RIN`) in this folder
 and run step 10 again.
 

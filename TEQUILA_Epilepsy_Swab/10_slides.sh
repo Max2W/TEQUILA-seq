@@ -69,6 +69,31 @@ fi
 python "${ANALYSIS_DIR}/scripts/public_data_figures.py" --public-dir "${ANALYSIS_DIR}/public_data" \
   --genes "${genes_csv}" "${rin_args[@]}" --outdir "${FIG}/public"
 
+# full path (all reads aligned, 07_qc_full.sh): capture QC, top genes, and the same gene read filter on the
+# genome-wide BAMs to see how many gene reads the k-mer baiting of the fast path recovered
+full_args=()
+if [[ -s "${QC_DIR}/per_sample_qc.tsv" ]]; then
+  FULL_FILTER="${FIG}/full_read_filter.tsv"
+  first=1
+  for gene in "${TARGET_GENES[@]}"; do
+    for sample in $(sample_ids); do
+      bam="${QC_DIR}/bam/${sample}.bam"
+      [[ -s "${bam}" ]] || continue
+      hdr=(); if (( first )); then hdr=(--header); first=0; fi
+      python "${ANALYSIS_DIR}/scripts/gene_read_filter.py" --gene "${gene}" --gtf "${FIG}/${gene}/${gene}_locus.gtf" \
+        --bam "${bam}" --out-bam "${PROJECT_DIR}/full_filtered/${gene}/${sample}.bam" --sample "${sample}" "${hdr[@]}"
+    done
+  done > "${FULL_FILTER}.tmp"
+  mv "${FULL_FILTER}.tmp" "${FULL_FILTER}"
+  echo "[slides] full-path read filter:"; (column -t "${FULL_FILTER}" 2>/dev/null || cat "${FULL_FILTER}")
+  python "${ANALYSIS_DIR}/scripts/full_path_figures.py" --genes "${genes_csv}" --sample-sheet "${SAMPLE_SHEET}" \
+    --qc-dir "${QC_DIR}" --fast-filter "${FIG}/read_filter.tsv" --full-filter "${FULL_FILTER}" \
+    --outdir "${FIG}/full_path"
+  full_args=(--full-figures "${FIG}/full_path")
+else
+  echo "[slides] no ${QC_DIR}/per_sample_qc.tsv (07_qc_full.sh): full-path slides left out"
+fi
+
 # run label for the sequencing slide: flow cell id(s) and run date(s) from the run folder names
 labels=()
 for fc in "${FLOWCELLS[@]}"; do
@@ -80,6 +105,6 @@ run_label="$(IFS=';'; echo "${labels[*]}" | sed 's/;/; /g')"
 mkdir -p "${RESULTS_DIR}/slides"
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
-  --public-figures "${FIG}/public" "${rin_slide[@]}" \
+  --public-figures "${FIG}/public" "${rin_slide[@]}" "${full_args[@]}" \
   --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
 echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"

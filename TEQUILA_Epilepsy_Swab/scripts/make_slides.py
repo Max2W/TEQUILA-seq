@@ -62,6 +62,7 @@ def parse_args():
     p.add_argument("--run-label", required=True, help="flowcell / run name for the sequencing slide")
     p.add_argument("--public-figures", help="figures of scripts/public_data_figures.py")
     p.add_argument("--rin", help="optional TSV with sample_id, RIN of this pilot's swab RNA")
+    p.add_argument("--full-figures", help="figures of scripts/full_path_figures.py (all reads aligned)")
     p.add_argument("--out", required=True)
     return p.parse_args()
 
@@ -242,6 +243,9 @@ def main():
             "Sequenced on {}: {:.1f} M reads in total, {} M per sample".format(
                 args.run_label, sum(per), fmt_range(per, 1))], 0.4, 5.3, SW - 0.8, 2.0, size=14)
 
+    if args.full_figures and os.path.isdir(args.full_figures):
+        full_path_slides(D, args, genes, samples, filt)
+
     # 4. detection (Figure 1)
     path = os.path.join(fig, "figure1.png")
     if os.path.exists(path) and filt:
@@ -346,11 +350,15 @@ def main():
     blocks = []
     for g in genes:
         gres = os.path.join(results, g)
-        for method in sorted(os.listdir(gres)) if os.path.isdir(gres) else []:
+        for method in sorted(m for m in os.listdir(gres) if os.path.isdir(os.path.join(gres, m))) \
+                if os.path.isdir(gres) else []:
             for key, what in report_figs.items():
                 q = os.path.join(gres, method, "{}_{}_{}.png".format(g, method, key))
                 if os.path.exists(q):
                     blocks.append(("{} isoform report ({}): {}".format(g, method.replace("_", " "), what), q))
+        q = os.path.join(gres, "method_comparison.png")
+        if os.path.exists(q):
+            blocks.append(("{} isoform proportions compared between quantification methods".format(g), q))
     frag = os.path.join(results, "fragmentation", "filtered")
     frag_figs = [("{} fragmentation (gene-filtered reads)".format(g), os.path.join(frag, "{}_fragmentation.png".format(g)))
                  for g in genes] + [("Detection and full-length reads, all genes and swabs",
@@ -364,6 +372,62 @@ def main():
 
     D.prs.save(args.out)
     print("{} slides -> {}".format(len(D.prs.slides), args.out))
+
+
+def full_path_slides(D, args, genes, samples, fast_filt):
+    ff = args.full_figures
+    vals = defaultdict(dict)
+    for r in read_tsv(os.path.join(ff, "full_path_figures.tsv")):
+        vals[(r["measure"], r["gene"])][r["sample_id"]] = r["value"]
+    p = os.path.join(ff, "capture_qc.png")
+    if os.path.exists(p):
+        on = {g: [float(v) for v in vals[("on_target_percent", g)].values()] for g in genes}
+        s = D.slide("On-target rate: " + "; ".join("{} {} of all reads".format(g, fmt_range(on[g], 2, True))
+                                                     for g in genes if on[g]), size=28)
+        D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.6)
+        mr = [float(v) for v in vals[("mapping_rate_percent", "")].values()]
+        ml = [float(v) for v in vals[("median_read_length", "")].values()]
+        D.bullets(s, ["All reads aligned to the genome (minimap2, full path): {} mapped".format(fmt_range(mr, 0, True)),
+                      "Median read length {} nt".format(fmt_range(ml)),
+                      "On-target = reads overlapping the gene's annotated span, as % of all reads sequenced"],
+                  0.5, 5.15, SW - 1.0, 1.6, size=14)
+    p = os.path.join(ff, "top_genes.png")
+    if os.path.exists(p):
+        ranked = [r for r in read_tsv(os.path.join(ff, "full_path_figures.tsv"))
+                  if r["measure"] == "top_gene_percent_of_mapped"]
+        names = [r["gene"] for r in ranked]
+        s = D.slide("Genes collecting the most reads across all swabs")
+        D.picture(s, p, 0.4, 1.45, 7.6, 5.2)
+        items = []
+        for g in genes:
+            if g in names:
+                items.append("{}: rank {} ({:.2f}% of mapped reads)".format(
+                    g, names.index(g) + 1, float(ranked[names.index(g)]["value"])))
+            else:
+                items.append("{}: not among the top {} genes".format(g, len(names)))
+        if ranked:
+            items.append("Most reads: {} ({:.1f}% of mapped reads)".format(names[0], float(ranked[0]["value"])))
+        items.append("A read is assigned to the gene containing its alignment midpoint")
+        D.bullets(s, items, 8.3, 1.7, 4.7, 5.0, size=15)
+    p = os.path.join(ff, "bait_recovery.png")
+    if os.path.exists(p):
+        rec = {}
+        for g in genes:
+            pairs = [tuple(map(int, v.split("/"))) for v in vals[("kept_full_vs_fast", g)].values()]
+            rec[g] = [b / a * 100 for a, b in pairs if a > 0]
+        s = D.slide("k-mer baiting recovers " + "; ".join("{} of {} gene reads".format(fmt_range(rec[g], 0, True), g)
+                                                          for g in genes if rec[g]) + " found by aligning all reads",
+                    size=26)
+        D.picture(s, p, 0.4, 1.45, 8.2, 5.2)
+        items = []
+        for g in genes:
+            pairs = [tuple(map(int, v.split("/"))) for v in vals[("spliced_kept_full_vs_fast", g)].values()]
+            sp = [b / a * 100 for a, b in pairs if a > 0]
+            if sp:
+                items.append("{}: spliced gene reads recovered {}".format(g, fmt_range(sp, 0, True)))
+        items.append("Both paths use the same gene read filter; fast path = reads carrying gene-unique 31-mers, "
+                     "aligned afterwards")
+        D.bullets(s, items, 8.8, 1.7, 4.3, 5.0, size=15)
 
 
 def public_slides(D, args, genes, samples):

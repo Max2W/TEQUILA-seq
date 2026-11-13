@@ -83,6 +83,7 @@ def main():
     pd.DataFrame(rows).to_csv(args.out_prefix + '_pairs.tsv', sep='\t', index=False, float_format='%.4f')
     fig.tight_layout()
     fig.savefig(args.out_prefix + '.pdf')
+    fig.savefig(args.out_prefix + '.png', dpi=200)
     print(pd.DataFrame(rows).to_string(index=False))
 
 
