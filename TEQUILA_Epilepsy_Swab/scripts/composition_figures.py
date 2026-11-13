@@ -44,6 +44,7 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--composition-dir", required=True, help="output of scripts/rna_composition.py")
     p.add_argument("--gene-counts", help="gene_counts.tsv of scripts/gene_counts.py (marker genes)")
+    p.add_argument("--expected", help="public_data/genome_expectation.tsv: categories expected for random genomic DNA")
     p.add_argument("--sample-sheet", required=True)
     p.add_argument("--outdir", required=True)
     return p.parse_args()
@@ -51,7 +52,7 @@ def parse_args():
 
 def read_tsv(path):
     with open(path) as fh:
-        return list(csv.DictReader(fh, delimiter="\t"))
+        return list(csv.DictReader((l for l in fh if not l.startswith("#")), delimiter="\t"))
 
 
 def classic(ax):
@@ -85,6 +86,10 @@ def main():
     kcol = {k: KIT_COLORS[i % 2] for i, k in enumerate(kits)}
     rows = []
 
+    exp = {}
+    if args.expected and os.path.exists(args.expected):
+        exp = {r["category"]: float(r["percent"]) for r in read_tsv(args.expected)}
+        rows += [("expected_random_dna", c, "expected", "{:.2f}".format(v)) for c, v in exp.items()]
     # ---- composition: stacked bars, all reads and off-panel reads
     fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.1), sharey=True)
     fig.subplots_adjust(left=0.07, right=0.80, bottom=0.22, top=0.86, wspace=0.12)
@@ -105,6 +110,16 @@ def main():
         for i, x in enumerate(n):
             ax.text(i, 101, "{:.2g}M".format(x / 1e6) if x >= 1e5 else "{:,}".format(x), ha="center", va="bottom",
                     fontsize=6.5, color="#555555")
+        if scope == "off_panel" and exp:
+            x0, b = len(samples) + 0.6, 0.0
+            for c in CATEGORIES:
+                v = exp.get(c, 0.0)
+                ax.bar(x0, v, bottom=b, color=CAT_COLORS[c], edgecolor="black", lw=0.6, width=0.8, hatch="//")
+                b += v
+            ax.set_xticks(list(range(len(samples))) + [x0])
+            ax.set_xticklabels([label(s) for s in samples] + ["Random DNA\n(expected)"], rotation=30, ha="right",
+                               rotation_mode="anchor")
+            ax.axvline(len(samples) - 0.2, color="#BBBBBB", lw=0.8, ls="--")
     axes[0].set_ylabel("% of reads")
     h, l = axes[0].get_legend_handles_labels()
     fig.legend(h[::-1], l[::-1], loc="center left", bbox_to_anchor=(0.81, 0.55), frameon=False, fontsize=8.5)

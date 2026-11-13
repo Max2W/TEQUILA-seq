@@ -37,6 +37,7 @@ else
   echo "[composition] no ${QC_DIR}/expression/gene_counts.tsv (11_expression_qc.sh): marker figure left out"
 fi
 python "${ANALYSIS_DIR}/scripts/composition_figures.py" --composition-dir "${QC_DIR}/composition" "${counts[@]}" \
-  --sample-sheet "${SAMPLE_SHEET}" --outdir "${RESULTS_DIR}/figures/composition"
+  --expected "${ANALYSIS_DIR}/public_data/genome_expectation.tsv" --sample-sheet "${SAMPLE_SHEET}" \
+  --outdir "${RESULTS_DIR}/figures/composition"
 echo "[composition] done: ${RESULTS_DIR}/figures/composition"
 echo "[composition] paste back: column -t ${QC_DIR}/composition/transcript_span.tsv"

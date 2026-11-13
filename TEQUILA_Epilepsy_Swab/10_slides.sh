@@ -68,8 +68,9 @@ RIN_TSV="${PROJECT_DIR}/rin.tsv"   # sample_id, RIN; sample data: kept on scratc
 if [[ -s "${RIN_TSV}" ]]; then
   rin_args=(--our-rin "${RIN_TSV}"); rin_slide=(--rin "${RIN_TSV}")
 fi
+# background figures hold published data only; this pilot's RIN is a result (rin_figures.py below)
 python "${ANALYSIS_DIR}/scripts/public_data_figures.py" --public-dir "${ANALYSIS_DIR}/public_data" \
-  --genes "${genes_csv}" "${rin_args[@]}" --outdir "${FIG}/public"
+  --genes "${genes_csv}" --outdir "${FIG}/public"
 # next specimen: nasal brushing vs buccal swab, from published numbers (public_data/nasal_literature.tsv)
 ped=()
 if [[ -s "${ANALYSIS_DIR}/public_data/nasal_pediatric.tsv" ]]; then ped=(--pediatric "${ANALYSIS_DIR}/public_data/nasal_pediatric.tsv"); fi
@@ -77,7 +78,10 @@ if [[ -s "${ANALYSIS_DIR}/public_data/nasal_gse152004_summary.tsv" ]]; then
   ped+=(--expression "${ANALYSIS_DIR}/public_data/nasal_gse152004_summary.tsv")
 fi
 python "${ANALYSIS_DIR}/scripts/nasal_literature_figures.py" --table "${ANALYSIS_DIR}/public_data/nasal_literature.tsv" \
-  "${ped[@]}" "${rin_args[@]}" --outdir "${FIG}/nasal"
+  "${ped[@]}" --outdir "${FIG}/nasal"
+# roadmap and accessible-tissue figures (public_data/gtex_panel_expression.tsv)
+python "${ANALYSIS_DIR}/scripts/exploration_figures.py" --gtex "${ANALYSIS_DIR}/public_data/gtex_panel_expression.tsv" \
+  --genes "${genes_csv}" --outdir "${FIG}/exploration"
 
 # full path (all reads aligned, 07_qc_full.sh): capture QC, top genes, and the same gene read filter on the
 # genome-wide BAMs to see how many gene reads the k-mer baiting of the fast path recovered
@@ -122,7 +126,8 @@ if [[ -s "${QC_DIR}/composition/composition.tsv" ]]; then
   counts=()
   if [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then counts=(--gene-counts "${QC_DIR}/expression/gene_counts.tsv"); fi
   python "${ANALYSIS_DIR}/scripts/composition_figures.py" --composition-dir "${QC_DIR}/composition" "${counts[@]}" \
-    --sample-sheet "${SAMPLE_SHEET}" --outdir "${FIG}/composition"
+    --expected "${ANALYSIS_DIR}/public_data/genome_expectation.tsv" --sample-sheet "${SAMPLE_SHEET}" \
+    --outdir "${FIG}/composition"
   extra_args+=(--composition-figures "${FIG}/composition")
 else
   echo "[slides] no ${QC_DIR}/composition (12_rna_composition.sh): RNA composition slides left out"
@@ -157,6 +162,6 @@ run_label="$(IFS=';'; echo "${labels[*]}" | sed 's/;/; /g')"
 mkdir -p "${RESULTS_DIR}/slides"
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
-  --public-figures "${FIG}/public" --nasal-figures "${FIG}/nasal" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" \
+  --public-figures "${FIG}/public" --nasal-figures "${FIG}/nasal" --exploration-figures "${FIG}/exploration" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" \
   --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
 echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"

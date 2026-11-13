@@ -1,0 +1,6 @@
+# Expected read categories for random genomic DNA: base fractions of the ungapped primary chromosomes (2.938 Gb), GENCODE v49, GRCh38. Made by scripts/genome_expectation.py.
+category	percent
+exonic, spliced	0.00
+exonic, unspliced	6.53
+intronic	63.74
+intergenic	29.73

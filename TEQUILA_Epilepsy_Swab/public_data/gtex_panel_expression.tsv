@@ -1,0 +1,56 @@
+# GTEx v8 median TPM per tissue (gene_median_tpm.gct). 634 of 634 panel genes found (older symbols mapped). Made by scripts/gtex_panel_summary.py.
+tissue	panel_genes	percent_ge1_tpm	percent_ge10_tpm	STXBP1_tpm	SYNGAP1_tpm
+Adipose - Subcutaneous	634	84.4	62.0	24.7	10.7
+Adipose - Visceral (Omentum)	634	83.9	59.1	25.1	11.8
+Adrenal Gland	634	83.6	56.0	14.6	9.9
+Artery - Aorta	634	84.5	63.9	16.5	18.6
+Artery - Coronary	634	84.7	63.6	22.1	16.5
+Artery - Tibial	634	84.9	62.6	17.1	16.5
+Bladder	634	84.7	64.8	18.9	19.5
+Brain - Amygdala	634	94.6	44.5	43.6	14.3
+Brain - Anterior cingulate cortex (BA24)	634	95.6	53.9	89.6	20.2
+Brain - Caudate (basal ganglia)	634	95.4	52.5	48.1	17.6
+Brain - Cerebellar Hemisphere	634	94.2	77.6	367.5	25.7
+Brain - Cerebellum	634	95.1	76.7	332.6	31.6
+Brain - Cortex	634	96.4	63.2	162.9	27.6
+Brain - Frontal Cortex (BA9)	634	96.2	65.9	209.3	24.9
+Brain - Hippocampus	634	94.3	45.6	47.3	21.0
+Brain - Hypothalamus	634	96.4	53.2	65.3	10.1
+Brain - Nucleus accumbens (basal ganglia)	634	95.4	55.0	67.8	24.1
+Brain - Putamen (basal ganglia)	634	93.4	44.6	34.6	12.1
+Brain - Spinal cord (cervical c-1)	634	91.5	53.0	29.4	3.9
+Brain - Substantia nigra	634	93.4	45.4	29.8	4.6
+Breast - Mammary Tissue	634	84.9	62.5	21.2	10.9
+Cells - Cultured fibroblasts	634	80.9	63.4	15.6	13.9
+Cells - EBV-transformed lymphocytes	634	74.3	59.3	0.3	10.6
+Cervix - Ectocervix	634	85.3	67.4	34.7	32.1
+Cervix - Endocervix	634	87.1	67.8	28.6	33.9
+Colon - Sigmoid	634	86.6	62.9	17.6	18.1
+Colon - Transverse	634	85.2	56.8	8.8	11.0
+Esophagus - Gastroesophageal Junction	634	86.0	62.0	16.7	18.7
+Esophagus - Mucosa	634	81.5	55.4	6.0	9.0
+Esophagus - Muscularis	634	85.3	60.3	15.4	16.5
+Fallopian Tube	634	86.3	66.6	36.0	38.5
+Heart - Atrial Appendage	634	83.4	40.9	10.2	5.4
+Heart - Left Ventricle	634	79.2	30.3	7.1	2.6
+Kidney - Cortex	634	82.0	41.0	7.2	5.4
+Kidney - Medulla	634	83.6	50.0	8.5	7.1
+Liver	634	78.2	34.2	1.0	1.6
+Lung	634	84.2	64.5	27.6	18.7
+Minor Salivary Gland	634	83.4	58.7	7.3	7.3
+Muscle - Skeletal	634	78.1	40.9	2.6	1.2
+Nerve - Tibial	634	89.3	70.5	35.7	16.3
+Ovary	634	86.1	66.6	30.0	38.2
+Pancreas	634	79.7	30.9	5.5	3.2
+Pituitary	634	93.2	69.1	97.3	62.9
+Prostate	634	86.9	63.4	13.1	15.3
+Skin - Not Sun Exposed (Suprapubic)	634	83.3	59.5	10.0	9.8
+Skin - Sun Exposed (Lower leg)	634	84.5	59.9	10.9	9.4
+Small Intestine - Terminal Ileum	634	84.9	58.5	7.8	14.6
+Spleen	634	83.0	59.5	8.7	15.5
+Stomach	634	83.1	51.9	6.9	6.9
+Testis	634	92.4	64.2	12.1	21.0
+Thyroid	634	86.9	66.6	25.5	19.4
+Uterus	634	85.5	67.5	34.2	39.4
+Vagina	634	86.0	64.5	17.2	19.9
+Whole Blood	634	68.8	30.4	0.3	2.7
