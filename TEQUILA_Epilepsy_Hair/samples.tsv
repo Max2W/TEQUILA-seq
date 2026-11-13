@@ -1,0 +1,9 @@
+sample_id	no	donor	species	cell_type	treatment	condition	barcode
+Frozen_A	1	A	Human	Hair_follicle	Plucked scalp hair follicles, frozen immediately (-80 C)	Frozen	SET_ME
+Frozen_B	2	B	Human	Hair_follicle	Plucked scalp hair follicles, frozen immediately (-80 C)	Frozen	SET_ME
+Frozen_C	3	C	Human	Hair_follicle	Plucked scalp hair follicles, frozen immediately (-80 C)	Frozen	SET_ME
+Frozen_D	4	D	Human	Hair_follicle	Plucked scalp hair follicles, frozen immediately (-80 C)	Frozen	SET_ME
+RNAlater_A	5	A	Human	Hair_follicle	Plucked scalp hair follicles, RNAlater at room temperature 2-3 days	RNAlater	SET_ME
+RNAlater_B	6	B	Human	Hair_follicle	Plucked scalp hair follicles, RNAlater at room temperature 2-3 days	RNAlater	SET_ME
+RNAlater_C	7	C	Human	Hair_follicle	Plucked scalp hair follicles, RNAlater at room temperature 2-3 days	RNAlater	SET_ME
+RNAlater_D	8	D	Human	Hair_follicle	Plucked scalp hair follicles, RNAlater at room temperature 2-3 days	RNAlater	SET_ME

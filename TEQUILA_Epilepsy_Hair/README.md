@@ -1,23 +1,51 @@
-# TEQUILA-seq: epilepsy genes in buccal swab RNA (pilot)
+# TEQUILA-seq: epilepsy genes in plucked hair-follicle RNA (pilot)
 
-Lab-member donors A-D each gave buccal swabs, collected with two swab / RNA-extraction kits, and the
-RNA was captured with TEQUILA-seq probes for epilepsy genes, including STXBP1 and SYNGAP1. Swab RNA
-is degraded (low RIN), but RIN does not say how much usable RNA remains for these genes. This
-analysis asks:
+The lab-member donors A-D of the buccal-swab pilot (branch `Epilepsy_Swab`) give plucked scalp hair follicles. Each
+donor's follicles are split between two storage conditions: frozen immediately (-80 C), or kept in RNAlater at room
+temperature for 2-3 days, which is what a mailed clinical sample would go through. A third tube per donor is kept for
+DNA. RNA is captured with the same TEQUILA-seq probe panel and analysed exactly like the swabs. Questions:
 
-1. **Detection.** Are the target genes detected in each sample, and at what depth?
-2. **Fragmentation.** How much of each transcript do the reads cover? Are any reads full length?
-3. **Isoforms.** Which transcripts are recovered, and do the two kits differ (paired by donor)?
+1. **Integrity.** Is hair-follicle RNA intact (RIN, full-length reads), and does RNAlater storage at room
+   temperature preserve it?
+2. **Detection and coverage.** Are the target genes detected, and how much of each transcript, and how many known
+   patient variants, do the reads cover?
+3. **Hair vs swab.** How does each donor's hair compare with the same donor's swabs?
 
-Data: `/mnt/isilon/lin_lab_share/Feng/TEQUILA_Epilepsy_Buccal_Swab_Pilot`, flowcell 3A
-(`20261104_1300_3A_PBM76834_dd62c4a3`), barcodes 17-24 (SQK-NBD114.24).
+Data: run folder and barcodes are set in `config.sh` and `samples.tsv` once the run exists (they read `SET_ME`
+until then, and step 01 stops with a message).
 
 ## Samples
 
-| barcode | sample_id | donor | swab kit | RNA extraction | condition |
-|---|---|---|---|---|---|
-| NB17-20 | Zymo_A ... Zymo_D | A-D | Zymo R1107-1 | Zymo Quick-RNA Microprep | Zymo |
-| NB21-24 | Genotek_A ... Genotek_D | A-D | Genotek OR-100 | Qiagen miRNeasy | Genotek |
+| sample_id | donor | collection and storage | condition |
+|---|---|---|---|
+| Frozen_A ... Frozen_D | A-D | plucked scalp hair follicles, frozen immediately (-80 C) | Frozen |
+| RNAlater_A ... RNAlater_D | A-D | plucked scalp hair follicles, RNAlater at room temperature 2-3 days | RNAlater |
+
+## Collection and extraction (per donor)
+
+- **Collection.**
+  - Pluck 25-30 scalp hairs from the back of the head (occipital) with tweezers, firmly at the base.
+  - Keep only hairs with a visible whitish root sheath (growth-phase, anagen, follicles). Cut off the shaft about
+    5 mm above the root.
+  - Make three tubes of about 10 follicles each: 1 Frozen (RNA), 2 RNAlater (RNA), 3 DNA.
+  - Record per tube: number of follicles with a sheath, hair type (fine or coarse), and minutes from plucking to
+    freezing or RNAlater.
+- **Storage.**
+  - Tube 1 goes straight onto dry ice, then -80 C.
+  - Tube 2 goes into RNAlater, stays at room temperature for 2-3 days, then -80 C or straight to extraction.
+- **RNA.**
+  - Homogenise with beads, then use Zymo Quick-RNA Microprep with the on-column DNase I step; TRI Reagent with Zymo
+    Direct-zol MicroPrep is the published alternative.
+  - Measure RIN on a high-sensitivity chip and record the yield.
+- **DNA.**
+  - Tube 3 with a DNA kit for small inputs (for example Qiagen DNeasy or QIAamp DNA Micro). Pool the follicles:
+    single hairs give little DNA.
+- **What to expect** (Martorella et al., BMC Genomics 2023): 10 follicles gave a median of 1,444 ng RNA with a mean
+  RIN of 8.9. Coarse hair keeps its follicles better than fine hair.
+
+Put the RIN values in `/scr1/users/wangf3/TEQUILA_Epilepsy_Hair/rin.tsv` (columns `sample_id`, `RIN`; sample
+data stay on scratch). Step 10 compares each donor's hair with the same donor's swabs (`scripts/compare_specimens.py`,
+read-only on the swab project).
 
 ## Genes
 
@@ -27,8 +55,8 @@ used for the on-target rate (step 11).
 
 ## Where things are on the HPC
 
-- **Code** (this repository) is in home: `/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq`.
-- **Outputs, logs and working files** are on scratch: `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab`.
+- **Code** (this repository) is in home: `/home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair/TEQUILA-seq`.
+- **Outputs, logs and working files** are on scratch: `/scr1/users/wangf3/TEQUILA_Epilepsy_Hair`.
 - **Reference data** is on scratch: `/scr1/users/wangf3/TEQUILA_references`. It holds GRCh38 +
   GENCODE v49 and the minimap2 genome index.
 - **Software** stays in home, in `/home/wangf3/feng/projects/TEQUILA_EIF2AK3`: the conda
@@ -72,15 +100,15 @@ Paste each block on the HPC login node, one at a time, in this order.
 ### Step 1. Get the code (once)
 
 ```bash
-mkdir -p /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
-git clone -b Epilepsy_Swab https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
+mkdir -p /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair
+git clone -b Epilepsy_Hair https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
 ```
 
 If it is already there, update it instead:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair/TEQUILA-seq
 git pull
 ```
 
@@ -89,14 +117,14 @@ git pull
 It should end with `=== SETUP COMPLETE ===`:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair/TEQUILA-seq/TEQUILA_Epilepsy_Hair
 bash 00_setup.sh
 ```
 
 ### Step 3. Start both paths
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair/TEQUILA-seq/TEQUILA_Epilepsy_Hair
 bash run_all.sh
 ```
 
@@ -113,14 +141,14 @@ sacct -u $USER -S today --format=JobID%10,JobName%28,State%14,ExitCode,Elapsed |
 If a job failed, the end of its error log names the failing line:
 
 ```bash
-cd /scr1/users/wangf3/TEQUILA_Epilepsy_Swab/logs
+cd /scr1/users/wangf3/TEQUILA_Epilepsy_Hair/logs
 for f in $(ls -t *.err | head -3); do echo "=== $f"; tail -15 "$f"; done
 ```
 
 ### Step 5. Results
 
 ```bash
-cd /scr1/users/wangf3/TEQUILA_Epilepsy_Swab
+cd /scr1/users/wangf3/TEQUILA_Epilepsy_Hair
 column -t qc/fastq_read_counts.tsv
 column -t fast/bait_align_stats.tsv
 cat results/fragmentation/fast/fragmentation_report.md
@@ -159,7 +187,7 @@ cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
 The work is light, so it runs here on the login node in a few minutes:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair/TEQUILA-seq/TEQUILA_Epilepsy_Hair
 LOCAL=1 bash 09_gene_figures.sh
 ```
 
@@ -190,16 +218,16 @@ from the first available of ESPRESSO_fast, AMALGAM_full, AMALGAM_fast or ESPRESS
 `python-pptx` into the analysis environment.
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair/TEQUILA-seq/TEQUILA_Epilepsy_Hair
 LOCAL=1 bash 10_slides.sh
 ```
 
-The deck is `results/slides/TEQUILA_Epilepsy_Swab_pilot.pptx`.
+The deck is `results/slides/TEQUILA_Epilepsy_Hair_pilot.pptx`.
 
 The deck also has public-data slides from `scripts/public_data_figures.py`. Their inputs are committed in
 `public_data/`, so no internet is needed:
 - GTEx v10 and Human Protein Atlas expression of both genes;
-- swab RNA quality from Martorella et al., BMC Genomics 2023: RIN, library QC failures and OMIM gene capture.
+- noninvasive-specimen RNA quality from Martorella et al., BMC Genomics 2023: RIN, library QC failures and OMIM gene capture.
 
 When the full path has run (`07_qc_full.sh`), step 10 also applies the gene read filter to the genome-wide BAMs
 (`results/figures/full_read_filter.tsv`). It adds capture QC slides from `scripts/full_path_figures.py`:
@@ -207,18 +235,18 @@ When the full path has run (`07_qc_full.sh`), step 10 also applies the gene read
 - the genes collecting the most reads;
 - how many gene reads the k-mer baiting of the fast path recovered.
 
-With `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/rin.tsv` (columns `sample_id`, `RIN`; sample data, kept on scratch),
+With `/scr1/users/wangf3/TEQUILA_Epilepsy_Hair/rin.tsv` (columns `sample_id`, `RIN`; sample data, kept on scratch),
 step 10 adds:
 - the pilot's RIN to the public-data RIN figure and slide;
 - RIN against the read-level integrity of the target genes (`scripts/rin_figures.py`).
 
 When step 11 has run, step 10 also adds a sex-marker sample identity check (`scripts/sex_check.py`; XIST against
-Y-linked genes; the two swabs of a donor must agree). Its output stays with the results on scratch.
+Y-linked genes; the two samples of a donor must agree). Its output stays with the results on scratch.
 
 ### Patient variant coverage (step 10)
 
-If `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/variants/patient_variants.tsv` exists, step 10 runs
-`scripts/variant_coverage.py`, which counts how many gene reads per swab cover each known patient variant of the target
+If `/scr1/users/wangf3/TEQUILA_Epilepsy_Hair/variants/patient_variants.tsv` exists, step 10 runs
+`scripts/variant_coverage.py`, which counts how many gene reads per sample cover each known patient variant of the target
 genes. The file needs columns gene, nucleotide (c.), protein and pathogenicity, separated by tabs or `|`.
 - c. positions are read on the MANE Select transcript, and the reference base is checked against the genome.
 - For splice-site variants, reads splicing across the variant's intron also count.
@@ -238,14 +266,14 @@ information: keep it on scratch, never in this repository.
 Run step 10 again afterwards to add these slides to the deck.
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Hair/TEQUILA-seq/TEQUILA_Epilepsy_Hair
 bash 11_expression_qc.sh
 ```
 
 ### Folder layout on scratch
 
 ```
-/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/
+/scr1/users/wangf3/TEQUILA_Epilepsy_Hair/
   bin/pipeline_env      runs a command in the TEQUILA-seq conda env
   fire_index/           FIRE index of STXBP1 + SYNGAP1
   fastq/                merged fastq.gz per sample (needed by the full path)
@@ -258,7 +286,7 @@ bash 11_expression_qc.sh
     <GENE>/<METHOD>/                isoform reports (ESPRESSO / AMALGAM, fast / full)
     figures/                        figure1/2 (pdf, png, data), kit_comparison.tsv, read_filter.tsv
     figures/deck/                   progress-deck style figures and tables (step 10)
-    slides/                         TEQUILA_Epilepsy_Swab_pilot.pptx (step 10)
+    slides/                         TEQUILA_Epilepsy_Hair_pilot.pptx (step 10)
     figures/<GENE>/                 coverage and isoform figures (pdf, png, data tables) and igv/ pages per sample
   logs/                 one .out/.err per SLURM job (job names start with epi_)
 /scr1/users/wangf3/TEQUILA_references/   GRCh38, GENCODE v49, minimap2 index

@@ -62,5 +62,5 @@ while IFS=$'\t' read -r sample _no _donor _sp cell _trt _cond _bc; do
   printf '%s\t%s\t%s\t%s\n' "${sample}" "${QC_DIR}/bam/${sample}.bam" "${QC_DIR}/target_genes.bed" "${cell}" >> "${rates_in}"
 done < "${SAMPLE_SHEET}"
 python "${CODE_DIR}/qc_analysis/plot_on_target_rates.py" --mapping-file "${rates_in}" \
-  --outprefix "${QC_DIR}/rates" --title "TEQUILA-seq epilepsy swab pilot" --threads "${THREADS}"
+  --outprefix "${QC_DIR}/rates" --title "TEQUILA-seq epilepsy hair pilot" --threads "${THREADS}"
 echo "[qc] done: ${QC_DIR}"

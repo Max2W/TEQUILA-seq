@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""How well the swab reads cover known patient variants of the target genes.
+"""How well the sample reads cover known patient variants of the target genes.
 
 Input: a variant table (tab- or |-separated, header with a gene column and a nucleotide (c.) column; protein and
 pathogenicity columns are used when present). c. positions are read on the gene's canonical (MANE Select)
@@ -7,7 +7,7 @@ transcript from the GTF. Rows that are not c. variants of a target gene (copy-nu
 genes) are listed in variants_skipped.tsv with the reason. The table holds patient information: keep it outside the
 repository.
 
-For every variant and swab (gene reads, i.e. the gene-filtered BAMs):
+For every variant and sample (gene reads, i.e. the gene-filtered BAMs):
   * exonic variants: reads with an aligned base at the variant (for a multi-base variant: at its first and last
     exonic base)
   * intronic / splice-site variants (c.N+k, c.N-k): reads with an aligned base at the site, plus reads that splice
@@ -16,7 +16,7 @@ The reference base of every substitution (and the deleted / duplicated bases whe
 genome, which catches a c. numbering on a different transcript.
 
 Outputs (--outdir): variant_coverage.tsv, variants_skipped.tsv, variant_coverage_<GENE>.{pdf,png} (coverage of all
-swabs with the variant positions, and reads per variant and swab), variant_coverage_summary.{pdf,png}.
+samples with the variant positions, and reads per variant and sample), variant_coverage_summary.{pdf,png}.
 """
 import argparse
 import csv
@@ -236,7 +236,7 @@ def gene_figure(gene, model, variants, samples, kits_of, cov_sum, glo, out):
     order = sorted(variants, key=lambda v: v["g_start"] * (1 if model["strand"] == "+" else -1))
     W, H = 13.0, 6.4
     fig = plt.figure(figsize=(W, H))
-    # coverage of all swabs with the variant positions
+    # coverage of all samples with the variant positions
     ax = fig.add_axes([0.7 / W, 4.55 / H, (W - 1.0) / W, 1.5 / H])
     lo, hi = model["exons"][0][0], model["exons"][-1][1]
     pos = np.arange(lo, hi + 1)
@@ -249,11 +249,11 @@ def gene_figure(gene, model, variants, samples, kits_of, cov_sum, glo, out):
     for v in order:
         ax.axvline(float(shrink(v["g_start"])), color=CONSEQ_COLORS[v["consequence"]], lw=0.8, alpha=0.9)
     ax.set_xlim(-0.005, 1.005)
-    ax.set_ylabel("Reads, all swabs")
+    ax.set_ylabel("Reads, all samples")
     for side in ("top", "right", "bottom"):
         ax.spines[side].set_visible(False)
     ax.set_xticks([])
-    ax.set_title("{}: read coverage of the 8 swabs (summed) and patient variant positions".format(gene),
+    ax.set_title("{}: read coverage of the 8 samples (summed) and patient variant positions".format(gene),
                  loc="left", fontsize=10, fontstyle="normal")
     # gene model
     axm = fig.add_axes([0.7 / W, 4.2 / H, (W - 1.0) / W, 0.3 / H])
@@ -263,7 +263,7 @@ def gene_figure(gene, model, variants, samples, kits_of, cov_sum, glo, out):
     axm.plot([shrink(lo), shrink(hi + 1)], [0, 0], color="black", lw=0.8)
     for s, e in model["exons"]:
         axm.add_patch(Rectangle((shrink(s), -0.6), max(shrink(e + 1) - shrink(s), 0.0015), 1.2, color="black"))
-    # heatmap: reads per variant and swab
+    # heatmap: reads per variant and sample
     axh = fig.add_axes([0.7 / W, 1.55 / H, (W - 1.0) / W, 1.55 / H])
     mat = np.array([[v["depth"][s] for v in order] for s in samples], float)
     cmap = ListedColormap(DEPTH_COLORS)
@@ -371,7 +371,7 @@ def main():
                             "location", "chrom", "start", "end", "reference_check", "note"] +
                            ["{}_reads".format(s) for s in samples] +
                            ["{}_junction_reads".format(s) for s in samples] +
-                           ["all_swabs_reads", "swabs_with_20_reads"]) + "\n")
+                           ["all_samples_reads", "samples_with_20_reads"]) + "\n")
         for v in sorted(variants, key=lambda v: (v["gene"], v["g_start"])):
             fh.write("\t".join(map(str, [
                 v["gene"], v["hgvs"], v["given"], v["protein"], v["pathogenicity"], v["n_listed"], v["consequence"],
@@ -411,13 +411,13 @@ def main():
     for g in genes:
         vs = [v for v in variants if v["gene"] == g]
         if vs:
-            print("{}: variants covered by >= 20 reads per swab: {}".format(g, ", ".join(
+            print("{}: variants covered by >= 20 reads per sample: {}".format(g, ", ".join(
                 "{} {}".format(sm, sum(v["depth"][sm] >= 20 for v in vs)) for sm in samples)))
     mism = [v for v in variants if v["ref_check"].startswith("MISMATCH")]
     for g in genes:
         vs = [v for v in variants if v["gene"] == g]
         if vs:
-            print("{}: {} distinct variants; covered by >= 1 / >= 10 / >= 20 reads in at least one swab: {} / {} / {}".format(
+            print("{}: {} distinct variants; covered by >= 1 / >= 10 / >= 20 reads in at least one sample: {} / {} / {}".format(
                 g, len(vs), *[sum(1 for v in vs if max(v["depth"].values()) >= t) for t in (1, 10, 20)]))
     print("skipped rows: {} (variants_skipped.tsv); reference check: {} match, {} mismatch, {} not checked".format(
         len(skipped), sum(v["ref_check"] == "match" for v in variants), len(mism),

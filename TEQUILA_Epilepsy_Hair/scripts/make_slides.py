@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Put the swab pilot figures into one slide deck (.pptx), in the layout of the TEQUILA-seq progress decks: white
+"""Put the hair-follicle pilot figures into one slide deck (.pptx), in the layout of the TEQUILA-seq progress decks: white
 16:9 slides, bold centred titles, one figure per slide, short bullets, footnotes with the criteria.
 
 Every number in a title or bullet is read from the result tables when the deck is built (read counts, read filter,
@@ -62,12 +62,13 @@ def parse_args():
     p.add_argument("--read-counts", required=True)
     p.add_argument("--run-label", required=True, help="flowcell / run name for the sequencing slide")
     p.add_argument("--public-figures", help="figures of scripts/public_data_figures.py")
-    p.add_argument("--rin", help="optional TSV with sample_id, RIN of this pilot's swab RNA")
+    p.add_argument("--rin", help="optional TSV with sample_id, RIN of this pilot's hair-follicle RNA")
     p.add_argument("--full-figures", help="figures of scripts/full_path_figures.py (all reads aligned)")
     p.add_argument("--expression-figures", help="figures of scripts/expression_qc.py (11_expression_qc.sh)")
     p.add_argument("--variant-figures", help="figures of scripts/variant_coverage.py")
     p.add_argument("--rin-figures", help="figures of scripts/rin_figures.py")
     p.add_argument("--sex-figures", help="figures of scripts/sex_check.py")
+    p.add_argument("--comparison-figures", help="figures of scripts/compare_specimens.py")
     p.add_argument("--out", required=True)
     return p.parse_args()
 
@@ -216,20 +217,20 @@ def main():
     tf.word_wrap, tf.vertical_anchor = True, MSO_ANCHOR.MIDDLE
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.CENTER
-    D.runs(p, "Targeted long-read RNA sequencing of epilepsy genes in buccal swab RNA", 40, bold=True)
+    D.runs(p, "Targeted long-read RNA sequencing of epilepsy genes in hair follicle RNA", 40, bold=True)
     p = tf.add_paragraph()
     p.alignment = PP_ALIGN.CENTER
     p.space_before = Pt(18)
-    D.runs(p, "TEQUILA-seq pilot: {} in {} donors, {} swab kits".format(
+    D.runs(p, "TEQUILA-seq pilot: {} in {} donors, plucked hair follicles, {} storage conditions".format(
         " and ".join(genes), len({r["donor"] for r in sheet}), len(kits)), 20, color=GREY)
 
     # 2. study design
-    s = D.slide("Study design: the same donors sampled with two swab and RNA extraction kits")
-    rows = [["Sample", "Donor", "Swab + RNA extraction", "Barcode"]] + [
+    s = D.slide("Study design: hair follicles of the same donors, frozen immediately or kept in RNAlater")
+    rows = [["Sample", "Donor", "Collection and storage", "Barcode"]] + [
         [r["sample_id"].replace("_", " "), r["donor"], r["treatment"], r["barcode"].replace("barcode", "NB")]
         for r in sheet]
     D.table(s, rows, 0.5, 1.7, 7.4, [1.3, 0.8, 4.3, 1.0], size=12)
-    D.bullets(s, ["Questions for low-RIN swab RNA:",
+    D.bullets(s, ["Questions for plucked hair follicles:",
                   (1, "Are {} detected, and at what depth?".format(" and ".join(genes))),
                   (1, "How much of each transcript do the reads cover? Are any reads full length?"),
                   (1, "Which isoforms and splicing events can be measured, and do the kits differ?"),
@@ -242,12 +243,12 @@ def main():
     # 3. sequencing (reads per sample)
     path = os.path.join(deck_dir, "reads_per_sample.png")
     if os.path.exists(path):
-        s = D.slide("Targeted long-read RNA sequencing of {} in buccal swabs".format(" and ".join(genes)))
+        s = D.slide("Targeted long-read RNA sequencing of {} in hair follicles".format(" and ".join(genes)))
         D.picture(s, path, 2.2, 1.45, 8.9, 3.85)
         per = [total[x] / 1e6 for x in samples]
         D.bullets(s, [
             "Prepared a multiplexed TEQUILA-seq library ({}-gene epilepsy and neurodevelopmental disorder probe "
-            "panel; genes of interest {}) from buccal swab RNA of {} donors collected with {} kits ({}), based on "
+            "panel; genes of interest {}) from hair follicle RNA of {} donors under {} storage conditions ({}), based on "
             "ONT sequencing kit SQK-NBD114.24".format(
                 panel_size(), " and ".join(genes), len({r["donor"] for r in sheet}), len(kits),
                 "; ".join("{}: {}".format(k, kit_text[k]) for k in kits)),
@@ -257,15 +258,15 @@ def main():
     if args.full_figures and os.path.isdir(args.full_figures):
         full_path_slides(D, args, genes, samples, filt)
 
-    # 4. detection: reads of the two genes per swab
+    # 4. detection: reads of the two genes per sample
     path = os.path.join(deck_dir, "gene_reads.png")
     if os.path.exists(path) and filt:
         detected = {g: sum(1 for x in samples if int(filt.get((g, x), {}).get("kept", 0)) > 0) for g in genes}
         all_det = all(detected[g] == len(samples) for g in genes)
         s = D.slide("{} detected in {}".format(
             " and ".join(genes) + (" are" if len(genes) > 1 else " is"),
-            "all {} swabs".format(len(samples)) if all_det else "; ".join(
-                "{} in {} of {} swabs".format(g, detected[g], len(samples)) for g in genes)))
+            "all {} samples".format(len(samples)) if all_det else "; ".join(
+                "{} in {} of {} samples".format(g, detected[g], len(samples)) for g in genes)))
         D.picture(s, path, 0.6, 1.4, SW - 1.2, 4.1)
         kit_of = {r["sample_id"]: r["condition"] for r in sheet}
         items = []
@@ -287,7 +288,7 @@ def main():
             k = kit.get(("full_length_reads", g))
             fl[g] = sum(int(float(v)) for part in k["per_donor"].split(";") for v in part.split(":")[1].split("/")) \
                 if k else None
-        title = "Swab RNA is fragmented: " + ", ".join(
+        title = "Hair follicle RNA: " + ", ".join(
             "{:,} full-length {} reads".format(fl[g], g) for g in genes if fl[g] is not None) + " in total" \
             if all(fl[g] is not None for g in genes) else "Fragmentation of {} transcripts".format(" and ".join(genes))
         s = D.slide(title)
@@ -302,6 +303,7 @@ def main():
         items.append("Full length = the read reaches the first and the last exon of the canonical (MANE) transcript")
         D.bullets(s, items, 8.8, 1.8, 4.2, 4.8, size=15)
 
+    comparison_slide(D, args, genes)
     rin_slide(D, args, genes)
     if args.variant_figures and os.path.isdir(args.variant_figures):
         variant_slides(D, args, genes, samples)
@@ -324,13 +326,13 @@ def main():
     if filt:
         for g in genes:
             kept = [int(filt[(g, x)]["kept"]) for x in samples if (g, x) in filt]
-            items.append("{}: detected in {} of {} swabs ({} reads per swab)".format(
+            items.append("{}: detected in {} of {} samples ({} reads per sample)".format(
                 g, sum(1 for v in kept if v > 0), len(samples), fmt_range(kept)))
     for g in genes:
         drawn = read_tsv(os.path.join(deck_dir, "{}_events_drawn.tsv".format(g)))
         if drawn:
             items.append("{}: {} splicing event(s) with >= 20 reads, see the event slides".format(g, len(drawn)))
-    items += ["Isoform proportions from fragmented swab RNA should be read with care: partial reads are assigned to "
+    items += ["Isoform proportions should be read with care when reads are partial: partial reads are assigned to "
               "isoforms they are compatible with",
               "Open question: was DNase treatment used for each kit? Some gene reads may come from genomic DNA"]
     D.bullets(s, items, 0.8, 1.6, SW - 1.6, 5.4, size=18)
@@ -370,7 +372,7 @@ def main():
             blocks.append(("{} isoform proportions compared between quantification methods".format(g), q))
     frag = os.path.join(results, "fragmentation", "filtered")
     frag_figs = [("{} fragmentation".format(g), os.path.join(frag, "{}_fragmentation.png".format(g)))
-                 for g in genes] + [("Detection and full-length reads, all genes and swabs",
+                 for g in genes] + [("Detection and full-length reads, all genes and samples",
                                      os.path.join(frag, "overview.png"))]
     frag_figs = [(t, q) for t, q in frag_figs if os.path.exists(q)]
     if blocks or frag_figs:
@@ -402,7 +404,7 @@ def full_path_slides(D, args, genes, samples, fast_filt):
         ranked = [r for r in read_tsv(os.path.join(ff, "full_path_figures.tsv"))
                   if r["measure"] == "top_gene_percent_of_mapped"]
         names = [r["gene"] for r in ranked]
-        s = D.slide("Genes collecting the most reads across all swabs")
+        s = D.slide("Genes collecting the most reads across all samples")
         D.picture(s, p, 0.4, 1.45, 7.6, 5.2)
         targets = {r["gene"]: float(r["value"]) for r in read_tsv(os.path.join(ff, "full_path_figures.tsv"))
                    if r["measure"] == "target_percent_of_mapped"}
@@ -441,6 +443,29 @@ def full_path_slides(D, args, genes, samples, fast_filt):
     sex_slide(D, args)
 
 
+def comparison_slide(D, args, genes):
+    cf = args.comparison_figures
+    p = os.path.join(cf, "specimen_comparison.png") if cf else ""
+    if not p or not os.path.exists(p):
+        return
+    rows = read_tsv(os.path.join(cf, "specimen_comparison.tsv"))
+    measure = "{} median transcript coverage (%)".format(genes[0])
+    vals = defaultdict(list)
+    for r in rows:
+        if r["measure"] == measure:
+            vals[r["specimen"]].append(float(r["value"]))
+    if len(vals) == 2:
+        (a, va), (b, vb) = sorted(vals.items())
+        med = lambda v: sorted(v)[len(v) // 2]  # noqa: E731
+        title = "{} vs {} in the same donors: the median {} read covers {:.0f}% vs {:.0f}% of the transcript".format(
+            a, b, genes[0], med(va), med(vb))
+    else:
+        title = "Hair follicles vs buccal swabs in the same donors"
+    s = D.slide(title, size=26)
+    D.picture(s, p, 0.3, 1.4, SW - 0.6, 5.4)
+    D.note(s, "Each line joins one donor's samples; hair conditions on the left, swab kits on the right", size=11)
+
+
 def rin_slide(D, args, genes):
     rf = args.rin_figures
     p = os.path.join(rf, "rin_integrity.png") if rf else ""
@@ -449,7 +474,7 @@ def rin_slide(D, args, genes):
     rows = read_tsv(os.path.join(rf, "rin_integrity.tsv"))
     rin = {r["sample_id"]: float(r["value"]) for r in rows if r["measure"] == "RIN"}
     top = max(rin, key=rin.get)
-    s = D.slide("RIN of the swabs and the read-level integrity of {}".format(" and ".join(genes)), size=28)
+    s = D.slide("RIN of the samples and the read-level integrity of {}".format(" and ".join(genes)), size=28)
     D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.8)
     items = ["RIN {} (mean {:.1f}); highest: {} ({:.1f})".format(fmt_range(list(rin.values()), 1),
                                                                  sum(rin.values()) / len(rin), top.replace("_", " "),
@@ -458,7 +483,7 @@ def rin_slide(D, args, genes):
         if r["measure"].startswith("spearman_rho_median_tx_coverage"):
             items.append("{}: Spearman rho between RIN and median transcript coverage of a read = {}".format(
                 r["gene"], r["value"]))
-    items.append("n = 8 swabs; correlations are exploratory")
+    items.append("n = {} samples; correlations are exploratory".format(len(rin)))
     D.bullets(s, items, 0.5, 5.35, SW - 1.0, 1.6, size=14)
 
 
@@ -468,15 +493,15 @@ def sex_slide(D, args):
     if not p or not os.path.exists(p):
         return
     rows = read_tsv(os.path.join(sf, "sex_check.tsv"))
-    donors = {r["donor"]: r["donor_swabs_agree"] == "True" for r in rows}
+    donors = {r["donor"]: r["donor_samples_agree"] == "True" for r in rows}
     unclear = sorted({r["donor"] for r in rows if r["call"] == "unclear"})
-    s = D.slide("Sample identity check: sex-marker expression agrees between the two swabs of {} of {} donors{}".format(
+    s = D.slide("Sample identity check: sex-marker expression agrees between the two samples of {} of {} donors{}".format(
         sum(donors.values()), len(donors),
         "; donor {} unclear in both".format(", ".join(unclear)) if unclear else ""), size=26)
     D.picture(s, p, 0.8, 1.5, 6.0, 5.0)
     D.bullets(s, ["XIST against Y-linked genes (RPS4Y1, DDX3Y, KDM5D, UTY, EIF1AY, USP9Y, ZFY), counts per million "
                   "from all reads",
-                  "The two swabs of a donor should fall together: a split would point to a sample swap"],
+                  "The two samples of a donor should fall together: a split would point to a sample swap"],
               7.2, 1.8, 5.7, 4.5, size=15)
 
 
@@ -494,7 +519,7 @@ def variant_slides(D, args, genes, samples):
             vs = [r for r in rows if r["gene"] == g]
             if vs:
                 parts.append("{} {} of {}".format(g, sum(covered(r, 20) for r in vs), len(vs)))
-        s = D.slide("Known patient variants covered by >= 20 reads in at least one swab: " + ", ".join(parts),
+        s = D.slide("Known patient variants covered by >= 20 reads in at least one sample: " + ", ".join(parts),
                     size=26)
         D.picture(s, p, 0.5, 1.45, SW - 1.0, 4.3)
         n_match = sum(r["reference_check"] == "match" for r in rows)
@@ -515,8 +540,8 @@ def variant_slides(D, args, genes, samples):
         s = D.slide("{}: {} of {} patient variants covered by >= 20 reads, {} not covered at all".format(
             g, sum(covered(r, 20) for r in vs), len(vs), len(five)), size=26)
         D.picture(s, p, 0.2, 1.35, SW - 0.4, 5.6)
-        D.note(s, "Reads per variant and swab (gene reads); variants ordered 5' to 3' along the transcript; top: summed "
-                  "coverage of the 8 swabs with the variant positions", size=11)
+        D.note(s, "Reads per variant and sample (gene reads); variants ordered 5' to 3' along the transcript; top: summed "
+                  "coverage of all samples with the variant positions", size=11)
 
 
 def expression_slides(D, args, genes, part):
@@ -542,8 +567,8 @@ def expression_slides(D, args, genes, part):
         D.bullets(s, items, 0.5, 5.5, SW - 1.0, 1.4, size=14)
     for name, title, note in (
             ("pca", "Samples cluster by {} in gene expression", "PCA of log2(CPM + 1); genes with CPM >= 1 in at "
-             "least 2 swabs; all reads aligned (full path)"),
-            ("correlation", "Gene expression correlation between swabs", "Pearson correlation of log2(CPM + 1)"),
+             "least 2 samples; all reads aligned (full path)"),
+            ("correlation", "Gene expression correlation between samples", "Pearson correlation of log2(CPM + 1)"),
             ("kit_scatter", "Panel gene expression, Zymo against Genotek, per donor",
              "Each point is a panel gene; log2(CPM + 1); dashed line: equal expression")):
         p = os.path.join(ef, name + ".png")
@@ -557,7 +582,7 @@ def expression_slides(D, args, genes, part):
 
 
 def pca_grouping(vals):
-    """'kit' or 'donor' or 'neither': which grouping separates the swabs along PC1 (all genes)."""
+    """'kit' or 'donor': which grouping separates the samples along PC1 (all genes)."""
     pts = {k: float(v.split(",")[0]) for k, v in vals.get("PC1_PC2_all", {}).items()}
     if len(pts) < 4:
         return "kit or donor"
@@ -583,47 +608,50 @@ def public_slides(D, args, genes, samples):
     rins = []
     if args.rin and os.path.exists(args.rin):
         rins = [float(r["RIN"]) for r in read_tsv(args.rin) if r.get("RIN") and r["sample_id"] in samples]
-    ours = ("This pilot: RIN {} across {} swabs, mean {:.1f}; all well below RIN 7, like the published buccal "
-            "swabs (mean 2.5)".format(fmt_range(rins, 1), len(rins), sum(rins) / len(rins)) if rins
-            else "This pilot: swab RNA RIN about 1-3 (per-sample values to be added)")
+    ours = ("This pilot: RIN {} across {} hair samples, mean {:.1f}".format(fmt_range(rins, 1), len(rins),
+                                                                            sum(rins) / len(rins)) if rins
+            else "This pilot: per-sample RIN to be added")
     cite = ("Martorella M, et al. Evaluation of noninvasive biospecimens for transcriptome studies. BMC Genomics. "
             "2023;24:790.")
     p = os.path.join(pub, "public_martorella2023.png")
     if os.path.exists(p):
+        h_rin = mart[("mean_RIN", "Hair follicles")]["value"]
         b_rin = mart[("mean_RIN", "Buccal swab")]["value"]
-        q = mart[("illumina_preseq_qc", "Buccal swab")]
         if rins:
-            s = D.slide("Our swab RNA is as degraded as reported for buccal swabs: RIN {} (mean {:.1f}) here, mean {} "
-                        "in Martorella et al. 2023".format(fmt_range(rins, 1), sum(rins) / len(rins), b_rin), size=26)
+            s = D.slide("Hair follicle RNA here: RIN {} (mean {:.1f}), against a mean of {} for hair and {} for buccal "
+                        "swabs in Martorella et al. 2023".format(fmt_range(rins, 1), sum(rins) / len(rins), h_rin,
+                                                                 b_rin), size=26)
         else:
-            s = D.slide("Buccal swab RNA is highly degraded in published data too: mean RIN {}, and {} of {} swabs "
-                        "failed standard library QC".format(b_rin, q["n_fail"], q["n_total"]), size=26)
+            s = D.slide("Plucked hair follicles give intact RNA in published data: mean RIN {}, against {} for buccal "
+                        "swabs".format(h_rin, b_rin), size=26)
         D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.6)
         D.bullets(s, [
-            "{} healthy donors sampled 3-4 times: buccal swab, saliva, hair follicles and urine; short-read RNA-seq"
-            .format(19),
-            "Buccal swabs captured a median {}% of OMIM disease genes (> 0.1 TPM), against {}% for hair and {}% for "
-            "urine".format(mart[("omim_capture_percent", "Buccal swab")]["value"],
-                           mart[("omim_capture_percent", "Hair follicles")]["value"],
-                           mart[("omim_capture_percent", "Urine cell pellet")]["value"]),
+            "19 healthy donors sampled 3-4 times: buccal swab, saliva, 10 plucked hair follicles and urine; short-read "
+            "RNA-seq",
+            "Hair follicles captured a median {}% of OMIM disease genes (> 0.1 TPM), against {}% for urine and {}% for "
+            "buccal swabs".format(mart[("omim_capture_percent", "Hair follicles")]["value"],
+                                  mart[("omim_capture_percent", "Urine cell pellet")]["value"],
+                                  mart[("omim_capture_percent", "Buccal swab")]["value"]),
             ours], 0.5, 5.05, SW - 1.0, 1.6, size=14)
         D.note(s, cite + " Values redrawn from the paper's text.", size=11)
 
     expr = read_tsv(os.path.join(pub, "public_expression.tsv"))
     val = {(r["source"], r["tissue"], r["gene"]): float(r["value"]) for r in expr}
+    skin = "Skin Not Sun Exposed Suprapubic"
     p = os.path.join(pub, "public_accessible.png")
     if os.path.exists(p) and expr:
         def g(t, gene, src="GTEx v10"):
             return val.get((src, t, gene))
-        sal = [g("Minor Salivary Gland", x) for x in genes]
-        s = D.slide("{} {} expressed at low levels in oral tissue: {} TPM in minor salivary gland".format(
-            " and ".join(genes), "are" if len(genes) > 1 else "is", " and ".join("{:.1f}".format(v) for v in sal if v is not None)), size=26)
+        sk = [g(skin, x) for x in genes]
+        s = D.slide("{} {} expressed in skin, the closest GTEx tissue to hair follicles: {} TPM".format(
+            " and ".join(genes), "are" if len(genes) > 1 else "is",
+            " and ".join("{:.1f}".format(v) for v in sk if v is not None)), size=26)
         D.picture(s, p, 0.3, 1.45, 7.9, 4.6)
         items = ["Brain cortex: {} TPM".format(" and ".join("{:.0f}".format(g("Brain - Cortex", x) or 0)
                                                             for x in genes)),
                  "Whole blood: {} TPM".format(" and ".join("{:.1f}".format(g("Whole Blood", x) or 0) for x in genes)),
-                 "No public buccal swab or saliva dataset reports either gene, and no long-read RNA study of these "
-                 "sample types was found",
+                 "GTEx has no hair follicle samples; plucked follicles cluster with skin and esophageal mucosa "
+                 "(Martorella 2023)",
                  "TEQUILA-seq reads per million (targeted capture) are not comparable to transcriptome-wide TPM"]
         D.bullets(s, items, 8.4, 1.6, 4.6, 5.0, size=15)
         D.note(s, "GTEx v10 median TPM per tissue (GTEx Portal API, retrieved 2026-11-12)", size=11)
@@ -635,11 +663,11 @@ def public_slides(D, args, genes, samples):
             D.note(s, "GTEx v10 short-read RNA-seq, TPM per sample; boxes sorted by median; whiskers 1.5 x IQR; "
                       "accessible tissues in colour", size=11)
     if expr:
-        s = D.slide("Public expression of {} in oral and accessible tissues".format(" and ".join(genes)))
+        s = D.slide("Public expression of {} in skin and other accessible tissues".format(" and ".join(genes)))
         rows = [["Source", "Tissue"] + genes]
-        for src, tissues in (("GTEx v10 (median TPM)", ["Minor Salivary Gland", "Esophagus - Mucosa", "Whole Blood",
-                                                         "Cultured fibroblasts", "Brain - Cortex"]),
-                             ("HPA (nTPM)", ["salivary gland", "tongue", "esophagus", "cerebral cortex"])):
+        for src, tissues in (("GTEx v10 (median TPM)", [skin, "Skin Sun Exposed Lower leg", "Cultured fibroblasts",
+                                                         "Whole Blood", "Brain - Cortex"]),
+                             ("HPA (nTPM)", ["cerebral cortex"])):
             key = "GTEx v10" if src.startswith("GTEx") else "Human Protein Atlas"
             for t in tissues:
                 vals = [val.get((key, t, x)) for x in genes]
@@ -649,10 +677,9 @@ def public_slides(D, args, genes, samples):
         D.table(s, rows, 0.5, 1.6, 6.6, [2.2, 2.4] + [1.0] * len(genes), size=12)
         D.bullets(s, [
             "Clinical RNA-seq for rare-disease diagnosis (genome-wide, not these two genes) has used blood, "
-            "fibroblasts, lymphoblastoid cells and muscle, not buccal swabs (Cummings 2017; Fresard 2019; Aicher "
-            "2020; Murdock 2021)",
-            "Buccal and saliva RNA are degraded and partly non-human, so fewer genes are captured (Martorella 2023)",
-            "Detection of these two genes in buccal swab RNA has not, to our knowledge, been reported"],
+            "fibroblasts, lymphoblastoid cells and muscle (Cummings 2017; Fresard 2019; Aicher 2020; Murdock 2021)",
+            "Plucked hair follicles gave the most consistent RNA among noninvasive specimens (Martorella 2023)",
+            "No long-read RNA study of plucked hair follicles was found"],
             7.5, 1.6, 5.4, 5.0, size=15)
         D.note(s, "GTEx Portal API v2 and Human Protein Atlas search API, retrieved 2026-11-12. Cummings BB, et al. Sci "
                   "Transl Med 2017; Fresard L, et al. Nat Med 2019; Aicher JK, et al. Genet Med 2020; Murdock DR, et "
@@ -663,13 +690,13 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
     gdir = os.path.join(fig, g)
     p = os.path.join(gdir, "{}_coverage_lines.png".format(g))
     if os.path.exists(p):
-        s = D.slide("Read coverage along {} in each swab".format(g))
+        s = D.slide("Read coverage along {} in each sample".format(g))
         D.picture(s, p, 2.0, 1.45, 9.3, 5.4)
         D.note(s, "Reads of the gene summed per position; introns shortened. Coverage adds up many short reads, so it "
                   "does not show fragmentation by itself: see the full-length reads and read-length slide", size=11)
     p = os.path.join(gdir, "{}_coverage_tracks.png".format(g))
     if os.path.exists(p):
-        s = D.slide("{} read coverage per swab".format(g))
+        s = D.slide("{} read coverage per sample".format(g))
         D.picture(s, p, 2.0, 1.45, 9.3, 5.4)
         D.note(s, "Reads of the gene, genomic coordinates; each track is scaled to its own maximum [0 - max]",
                size=11)
@@ -686,9 +713,9 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
             fr = [float(canon[0]["{}_fraction".format(x)]) * 100 for x in ok]
             title = "The canonical {} isoform accounts for {} of {} isoform reads".format(g, fmt_range(fr, 0, True), g)
         elif not ok:
-            title = "Too few {} reads were assigned to isoforms (fewer than 20 in every swab)".format(g)
+            title = "Too few {} reads were assigned to isoforms (fewer than 20 in every sample)".format(g)
         else:
-            title = "{} isoform usage in buccal swabs".format(g)
+            title = "{} isoform usage in hair follicles".format(g)
         s = D.slide(title, size=28)
         D.picture(s, p, 0.3, 1.45, SW - 0.6, 5.3)
         D.note(s, crit + "; isoforms quantified by {}".format(method), size=11)
@@ -721,7 +748,7 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
         is_ce = d["type"] == "Cassette exon"
         what = "{} {}{}".format(g, "" if one["in_gencode"] == "True" else "novel ",
                                 "cassette exon" if is_ce else d["type"].lower())
-        title = "{}: {} {} in {} swab(s) with >= 20 reads".format(
+        title = "{}: {} {} in {} sample(s) with >= 20 reads".format(
             what[0].upper() + what[1:] if not what.startswith(g) else what,
             "inclusion" if is_ce else "usage", fmt_range(lv, 0, True), len(lv)) if lv else what
         s = D.slide(title, size=28)
@@ -735,11 +762,11 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
 
     p = os.path.join(gdir, "{}_figure.png".format(g))
     if os.path.exists(p):
-        s = D.slide("{} sashimi plots, reads and coverage per swab".format(g))
+        s = D.slide("{} sashimi plots, reads and coverage per sample".format(g))
         D.picture(s, p, 0.4, 1.4, 6.6, 5.7)
-        D.bullets(s, ["a  Sashimi plot per swab: coverage and junction arcs with their read counts (arcs below the "
-                      "per-swab floor are hidden)",
-                      "b  IGV-style reads, 25 per swab; full-length reads darker",
+        D.bullets(s, ["a  Sashimi plot per sample: coverage and junction arcs with their read counts (arcs below the "
+                      "per-sample floor are hidden)",
+                      "b  IGV-style reads, 25 per sample; full-length reads darker",
                       "c  Gene-body coverage along the canonical transcript, 5' to 3'",
                       "d  Reads on canonical exons; the number above each bar is the count of "
                       "full-length reads"], 7.3, 1.7, 5.6, 5.0, size=15)

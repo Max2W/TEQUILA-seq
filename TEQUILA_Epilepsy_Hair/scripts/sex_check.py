@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Sample identity check from sex-chromosome gene expression (XIST against Y-linked genes).
 
-Two swabs of the same donor must agree. The genes used (XIST; RPS4Y1, DDX3Y, KDM5D, UTY, EIF1AY, USP9Y, ZFY) are the
-standard expression-based sex check. Per swab: XIST and summed Y-gene expression in CPM, and a call (female: XIST
+Two samples of the same donor must agree. The genes used (XIST; RPS4Y1, DDX3Y, KDM5D, UTY, EIF1AY, USP9Y, ZFY) are the
+standard expression-based sex check. Per sample: XIST and summed Y-gene expression in CPM, and a call (female: XIST
 high, Y genes near zero; male: the reverse; unclear otherwise). Output stays with the results (not the repository):
 sex_check.tsv, sex_check.{pdf,png}.
 Input: gene_counts.tsv from scripts/gene_counts.py.
@@ -53,9 +53,9 @@ def main():
     agree = {}
     for d in dict.fromkeys(meta[s]["donor"] for s in samples):
         cs = {calls[s] for s in samples if meta[s]["donor"] == d}
-        agree[d] = len(cs) == 1  # same call in every swab of the donor ("unclear" in both also agrees)
+        agree[d] = len(cs) == 1  # same call in every sample of the donor ("unclear" in both also agrees)
     with open(os.path.join(args.outdir, "sex_check.tsv"), "w") as fh:
-        fh.write("sample_id\tdonor\tkit\tXIST_cpm\tY_genes_cpm\tcall\tdonor_swabs_agree\n")
+        fh.write("sample_id\tdonor\tkit\tXIST_cpm\tY_genes_cpm\tcall\tdonor_samples_agree\n")
         for s in samples:
             fh.write("{}\t{}\t{}\t{:.2f}\t{:.2f}\t{}\t{}\n".format(s, meta[s]["donor"], meta[s]["condition"], xist[s],
                                                                    ysum[s], calls[s], agree[meta[s]["donor"]]))
@@ -79,7 +79,7 @@ def main():
     fig.savefig(os.path.join(args.outdir, "sex_check.png"), dpi=300)
     plt.close(fig)
     unclear = sorted({meta[s]["donor"] for s in samples if calls[s] == "unclear"})
-    print("sex check: the swabs agree for {} of {} donors; unclear calls: {} -> {}".format(
+    print("sex check: the samples agree for {} of {} donors; unclear calls: {} -> {}".format(
         sum(agree.values()), len(agree), ", ".join(unclear) or "none", args.outdir))
 
 

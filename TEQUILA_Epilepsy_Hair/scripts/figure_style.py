@@ -1,4 +1,4 @@
-"""Shared drawing rules for the swab figures (isoform_abundance_plot.py, coverage_plot.py).
+"""Shared drawing rules for the sample figures (isoform_abundance_plot.py, coverage_plot.py).
 
 The style follows the isoform and coverage figures of the TEQUILA-seq / SMG1i (NMD inhibition) studies: ggplot-like
 panels with black outlines, Arial-type text, transcripts drawn on a common axis whose introns are shortened.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publication Figures 1 and 2 for the buccal-swab TEQUILA-seq pilot (STRIPE / Nature style, 183 mm wide).
+"""Publication Figures 1 and 2 for the hair-follicle TEQUILA-seq pilot (STRIPE / Nature style, 183 mm wide).
 
 Figure 1  Sequencing and detection
   a  reads sequenced per sample (bars) and mean read length (number above)

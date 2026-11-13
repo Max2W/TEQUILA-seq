@@ -58,7 +58,7 @@ mkdir -p "${PIPELINE_DIR}" "${LOG_DIR}" "${FASTQ_DIR}" "${QC_DIR}" "${RESULTS_DI
 # runs its arguments inside the shared pipeline env (Snakemake and its rules)
 cat > "${CONDA_WRAPPER}" <<EOF
 #!/bin/bash
-# written by TEQUILA_Epilepsy_Swab/00_setup.sh: run a command in ${PIPELINE_ENV}
+# written by TEQUILA_Epilepsy_Hair/00_setup.sh: run a command in ${PIPELINE_ENV}
 if ! command -v conda >/dev/null 2>&1; then source "\${HOME}/.bashrc"; fi
 eval "\$(conda shell.bash hook)"
 conda activate "${PIPELINE_ENV}"

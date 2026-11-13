@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""RNA integrity number (RIN) of the swabs against the read-level integrity of the target genes.
+"""RNA integrity number (RIN) of the samples against the read-level integrity of the target genes.
 
-  rin_integrity   (a) RIN per swab, coloured by kit, with the mean RIN of buccal swabs reported by Martorella et al.
+  rin_integrity   (a) RIN per sample, coloured by condition, with the mean RIN of hair follicles reported by Martorella et al.
                   2023 (dashed); (b) RIN against the median transcript coverage of a gene read; (c) RIN against the share
                   of gene reads covering at least half the canonical transcript. Letters mark donors; Spearman rho is
-                  exploratory (n = swabs).
+                  exploratory (n = samples).
 Inputs: rin.tsv (sample_id, RIN), results/fragmentation/filtered/fragmentation_summary.tsv, the sample sheet and
 public_data/martorella2023_summary.tsv. Every drawn number goes to rin_integrity.tsv.
 """
@@ -57,7 +57,7 @@ def main():
     samples = [r["sample_id"] for k in kits for r in sheet if r["condition"] == k and r["sample_id"] in rin]
     frag = {(r["gene"], r["sample_id"]): r for r in read_tsv(args.fragmentation)}
     buccal = [float(r["value"]) for r in read_tsv(args.martorella)
-              if r["measure"] == "mean_RIN" and r["sample_type"].startswith("Buccal")]
+              if r["measure"] == "mean_RIN" and r["sample_type"].startswith("Hair")]
     color = {k: KIT_COLORS[i % 2] for i, k in enumerate(kits)}
     rows = []
 
@@ -74,7 +74,7 @@ def main():
     if buccal:
         ax.axhline(buccal[0], color="#555555", lw=0.9, ls="--")
         handles.append(plt.Line2D([], [], color="#555555", lw=0.9, ls="--"))
-        names.append("Buccal swabs, Martorella 2023 (mean {:.1f})".format(buccal[0]))
+        names.append("Hair follicles, Martorella 2023 (mean {:.1f})".format(buccal[0]))
     ax.set_ylim(0, 10)
     ax.set_ylabel("RNA integrity number (RIN)")
     ax.set_xticks(x)

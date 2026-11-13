@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Figures from public data and literature, for context on the swab pilot (drawn in the progress-deck style).
+"""Figures from public data and literature, for context on the hair-follicle pilot (drawn in the progress-deck style).
 
 Inputs are committed under public_data/ (no internet needed):
   raw/gtex_v10_samples_<GENE>.json   GTEx Portal API v2, expression/geneExpression, dataset gtex_v10 (per-sample TPM)
@@ -8,7 +8,7 @@ Inputs are committed under public_data/ (no internet needed):
   martorella2023_summary.tsv         numbers transcribed from Martorella et al., BMC Genomics 2023 (full text in raw/)
 
 Figures (<outdir>/):
-  public_martorella2023   a mean RIN by noninvasive sample type (with this pilot's swabs when --our-rin is given),
+  public_martorella2023   a mean RIN by noninvasive sample type (with this pilot's samples when --our-rin is given),
                           b samples failing pre-sequencing QC with the Illumina kit, c OMIM genes captured (median %)
   public_gtex_<GENE>      expression (TPM) across GTEx v10 tissues, boxes sorted by median; accessible tissues in colour
   public_accessible       median TPM of each gene in brain and in accessible tissues (GTEx v10)
@@ -49,7 +49,7 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--public-dir", required=True, help="public_data/ of this analysis folder")
     p.add_argument("--genes", required=True, help="comma-separated")
-    p.add_argument("--our-rin", help="optional TSV with columns sample_id, RIN (this pilot's swab RNA)")
+    p.add_argument("--our-rin", help="optional TSV with columns sample_id, RIN (this pilot's RNA)")
     p.add_argument("--outdir", required=True)
     return p.parse_args()
 
@@ -83,9 +83,9 @@ def martorella(args):
     fig, axes = plt.subplots(1, 3, figsize=(12.3, 3.6), gridspec_kw={"width_ratios": [1.2, 1, 1]})
     fig.subplots_adjust(left=0.06, right=0.99, top=0.88, bottom=0.3, wspace=0.42)
     ax = axes[0]
-    names = [n for n, _ in rin] + (["This pilot (buccal swabs)"] if ours else [])
+    names = [n for n, _ in rin] + (["This pilot (hair follicles)"] if ours else [])
     vals = [v for _, v in rin] + ([float(np.mean(ours))] if ours else [])
-    cols = ["#BEBEBE" if "Hair" in n else SLATE for n in names[:len(rin)]] + (["#3A8DC4"] if ours else [])
+    cols = [SLATE if "Hair" in n else "#BEBEBE" for n in names[:len(rin)]] + (["#3A8DC4"] if ours else [])
     ax.bar(range(len(vals)), vals, width=0.7, color=cols)
     if ours:
         ax.scatter(np.full(len(ours), len(vals) - 1) + np.random.default_rng(1).uniform(-0.18, 0.18, len(ours)),
@@ -117,7 +117,7 @@ def martorella(args):
     classic(ax)
     ax = axes[2]
     ax.bar(range(len(omim)), [v for _, v in omim], width=0.7,
-           color=[SLATE if "Buccal" in n else "#BEBEBE" for n, _ in omim])
+           color=[SLATE if "Hair" in n else "#BEBEBE" for n, _ in omim])
     for i, (_, v) in enumerate(omim):
         ax.text(i, v + 1.5, "{:.0f}%".format(v), ha="center", va="bottom", fontsize=8)
     ax.set_ylim(0, 100)

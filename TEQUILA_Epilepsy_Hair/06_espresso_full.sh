@@ -16,7 +16,7 @@ source "${_D}/lib.sh"
 [[ -x "${CONDA_WRAPPER}" ]] || { echo "missing ${CONDA_WRAPPER}: run 00_setup.sh" >&2; exit 1; }
 [[ -L "${PIPELINE_DIR}/Snakefile" ]] || { echo "pipeline dir not set up: run 00_setup.sh pipeline" >&2; exit 1; }
 
-# ESPRESSO on all reads needs much more memory than the 64 GB default (the swab
+# ESPRESSO on all reads needs much more memory than the 64 GB default (the sample
 # run was killed at 64 GB). Ask for ESPRESSO_MEM_GB, capped at 90% of the largest
 # node in the partition so the job can be scheduled at all.
 ESPRESSO_MEM_GB="${ESPRESSO_MEM_GB:-192}"

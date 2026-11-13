@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Figures in the style of the TEQUILA-seq haploinsufficient-gene progress deck, for the swab pilot.
+"""Figures in the style of the TEQUILA-seq haploinsufficient-gene progress deck, for the hair pilot.
 
   reads_per_sample          sequencing reads per sample (millions), sorted, slate bars
   <GENE>_gene_model         the canonical (MANE) transcript: exons, CDS, length, protein length

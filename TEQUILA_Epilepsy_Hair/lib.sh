@@ -20,7 +20,7 @@ ensure_conda_wrapper() {
   mkdir -p "$(dirname "${CONDA_WRAPPER}")"
   {
     echo '#!/bin/bash'
-    echo "# written by TEQUILA_Epilepsy_Swab/lib.sh: run a command in ${PIPELINE_ENV}"
+    echo "# written by TEQUILA_Epilepsy_Hair/lib.sh: run a command in ${PIPELINE_ENV}"
     echo 'if ! command -v conda >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi'
     echo 'eval "$(conda shell.bash hook)"'
     echo "conda activate \"${PIPELINE_ENV}\""

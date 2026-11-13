@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One multi-panel figure per gene for the swab pilot, in the STRIPE / Nature style.
+"""One multi-panel figure per gene for the hair pilot, in the STRIPE / Nature style.
 
 Layout and drawing rules follow the shared stripe-style figure kit (plot_stripe_style.py, Xing lab, after Wang et
 al., Sci. Adv. 2026): 183 mm wide (Nature double column), 7-pt sans-serif text, bold lower-case panel letters, the

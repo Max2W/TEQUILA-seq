@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Detection and fragmentation report for target genes (degraded RNA, e.g. buccal swabs).
+"""Detection and fragmentation report for target genes (degraded RNA, e.g. buccal samples).
 
 For every target gene and sample it answers two questions:
   1. Is the gene detected?  reads on the gene, and reads per million of all reads sequenced

@@ -125,7 +125,7 @@ def main():
             ax.text(n / mapped * 100, yy, "  {:.3f}%{}".format(n / mapped * 100, "" if g in names else
                                                                " (not in top {})".format(len(names))),
                     va="center", fontsize=8)
-    ax.set_xlabel("Reads assigned to the gene (% of mapped reads, all swabs)")
+    ax.set_xlabel("Reads assigned to the gene (% of mapped reads, all samples)")
     classic(ax)
     save(fig, os.path.join(args.outdir, "top_genes"))
     rows += [("top_gene_percent_of_mapped", g, "all", "{:.4f}".format(n / mapped * 100)) for g, n in best]
