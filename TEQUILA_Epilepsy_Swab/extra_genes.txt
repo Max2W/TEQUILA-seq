@@ -1,0 +1,7 @@
+# Five more well-established genes of developmental and epileptic encephalopathy, analysed exactly like the
+# target genes with GENE_SET=extra (outputs in results_extra/ and fast_extra/). See README, "Five more genes".
+SCN1A
+KCNQ2
+CDKL5
+SCN2A
+MECP2

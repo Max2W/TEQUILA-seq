@@ -273,6 +273,48 @@ When it finishes, paste back the output of:
 column -t /scr1/users/wangf3/TEQUILA_Epilepsy_Swab/qc/composition/transcript_span.tsv
 ```
 
+### Step 10. The whole panel and five more genes
+
+Two parts:
+
+1. **Public data: the whole panel in accessible specimens.** This needs no job. Step 10 draws it from
+   `public_data/panel_expression_atlas.tsv` (`scripts/panel_atlas.py`):
+   - for every panel gene, the median TPM in brain, nasal brushings (GEO GSE152004, converted to TPM) and the GTEx v8
+     tissue closest to each accessible specimen;
+   - it goes into the deck as a section on the whole panel.
+2. **Five more genes through the same analysis: SCN1A, KCNQ2, CDKL5, SCN2A and MECP2.**
+   - **Why these five:** all are ClinGen Definitive and among the most frequent causes of genetic epilepsy (Truty
+     2019; Symonds 2019). See `public_data/dee_gene_frequency.tsv`.
+   - **How it runs:** they are listed in `extra_genes.txt` and analysed with `GENE_SET=extra`. Their outputs go to
+     `results_extra/` and `fast_extra/`, so the STXBP1 and SYNGAP1 results are not touched.
+   - **Reused data:** the merged fastq files and the full-path BAMs are reused, so there is no step 01 and no step 07.
+
+Run the fast path for the five genes (a chain of jobs):
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+GENE_SET=extra SKIP_FASTQ=1 bash run_fast_path.sh
+```
+
+When `squeue -u $USER` shows no more jobs, draw their figures and their own deck:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+GENE_SET=extra bash 09_gene_figures.sh
+```
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+GENE_SET=extra bash 10_slides.sh
+```
+
+Then rebuild the main deck, which picks up the five-gene results from `results_extra/`:
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+bash 10_slides.sh
+```
+
 ### Folder layout on scratch
 
 ```

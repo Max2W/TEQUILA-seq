@@ -1,0 +1,26 @@
+# How often each gene explains epilepsy, from two studies (transcribed 2026-11-13):
+# truty_posmd: Truty R et al. Epilepsia Open 2019;4(3):397-408 (PMID 31440721), Supplementary Table S1: positive
+#   molecular diagnoses per gene among 9,769 people with epilepsy tested with a gene panel (1,502 diagnoses).
+# symonds_incidence: Symonds JD et al. Brain 2019;142(8):2303-2318 (PMID 31302675): incidence per 100,000 live births,
+#   population-based cohort of epilepsy starting before 36 months (KCNQ2 includes self-limited neonatal epilepsy).
+# Truty ranks 13 and 15 were not transcribed.
+measure	gene	value	note
+truty_posmd	SCN1A	236	rank 1
+truty_posmd	MECP2	110	rank 2
+truty_posmd	PRRT2	106	rank 3; mostly self-limited epilepsy
+truty_posmd	KCNQ2	103	rank 4
+truty_posmd	DEPDC5	59	rank 5; mostly focal epilepsy
+truty_posmd	PCDH19	52	rank 6; females and mosaic males
+truty_posmd	SCN2A	49	rank 7
+truty_posmd	STXBP1	47	rank 8
+truty_posmd	UBE3A	45	rank 9
+truty_posmd	SYNGAP1	39	rank 10
+truty_posmd	CDKL5	38	rank 11
+truty_posmd	CHD2	25	rank 12
+truty_posmd	SLC2A1	23	rank 14
+truty_posmd	FOXG1	20	rank 16
+symonds_incidence	PRRT2	10.0	
+symonds_incidence	SCN1A	8.26	1 in 12,200
+symonds_incidence	KCNQ2	5.89	1 in 17,000; includes self-limited neonatal epilepsy
+symonds_incidence	SLC2A1	4.13	
+symonds_incidence	CDKL5	2.36	1 in 42,400

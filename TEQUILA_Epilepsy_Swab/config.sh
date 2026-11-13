@@ -59,10 +59,19 @@ GTF_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_${GEN
 
 # ---------------------------------------------------------------------------
 # Target genes: one gene name per line in target_genes.txt (# starts a comment)
+# GENE_SET=<name> (for example GENE_SET=extra) analyses the genes in <name>_genes.txt instead, with its own
+# outputs (results_<name>/, fast_<name>/), so the results of target_genes.txt are not touched.
 # ---------------------------------------------------------------------------
-mapfile -t TARGET_GENES < <(sed 's/#.*//' "${ANALYSIS_DIR}/target_genes.txt" | awk 'NF {print $1}')
+GENE_SET="${GENE_SET:-main}"
+GENES_FILE="${ANALYSIS_DIR}/target_genes.txt"
+if [[ "${GENE_SET}" != "main" ]]; then
+  GENES_FILE="${ANALYSIS_DIR}/${GENE_SET}_genes.txt"
+  [[ -s "${GENES_FILE}" ]] || { echo "config.sh: GENE_SET=${GENE_SET} but ${GENES_FILE} is missing" >&2; exit 1; }
+  RESULTS_DIR="${PROJECT_DIR}/results_${GENE_SET}"
+fi
+mapfile -t TARGET_GENES < <(sed 's/#.*//' "${GENES_FILE}" | awk 'NF {print $1}')
 if (( ${#TARGET_GENES[@]} == 0 )); then
-  echo "config.sh: no genes in ${ANALYSIS_DIR}/target_genes.txt" >&2
+  echo "config.sh: no genes in ${GENES_FILE}" >&2
   exit 1
 fi
 # genes reported under results/internal_control/<GENE>/ instead of results/<GENE>/
@@ -97,6 +106,7 @@ fi
 # A read is baited when it carries at least this many gene-unique 31-mers
 BAIT_MIN_HITS="${BAIT_MIN_HITS:-3}"
 FAST_DIR="${PROJECT_DIR}/fast"
+if [[ "${GENE_SET}" != "main" ]]; then FAST_DIR="${PROJECT_DIR}/fast_${GENE_SET}"; fi
 
 AMALGAM_REPO="https://github.com/RNA-ROB/amalgam.git"
 AMALGAM_COMMIT="${AMALGAM_COMMIT:-main}"

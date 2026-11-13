@@ -68,6 +68,11 @@ RIN_TSV="${PROJECT_DIR}/rin.tsv"   # sample_id, RIN; sample data: kept on scratc
 if [[ -s "${RIN_TSV}" ]]; then
   rin_args=(--our-rin "${RIN_TSV}"); rin_slide=(--rin "${RIN_TSV}")
 fi
+# GENE_SET=main: the full project deck. Any other gene set (GENE_SET=extra): a deck of that gene set's results only
+MAIN=1
+if [[ "${GENE_SET}" != "main" ]]; then MAIN=0; fi
+deck_args=()
+if (( MAIN )); then
 # background figures hold published data only; this pilot's RIN is a result (rin_figures.py below)
 python "${ANALYSIS_DIR}/scripts/public_data_figures.py" --public-dir "${ANALYSIS_DIR}/public_data" \
   --genes "${genes_csv}" --outdir "${FIG}/public"
@@ -82,6 +87,29 @@ python "${ANALYSIS_DIR}/scripts/nasal_literature_figures.py" --table "${ANALYSIS
 # roadmap and accessible-tissue figures (public_data/gtex_panel_expression.tsv)
 python "${ANALYSIS_DIR}/scripts/exploration_figures.py" --gtex "${ANALYSIS_DIR}/public_data/gtex_panel_expression.tsv" \
   --genes "${genes_csv}" --outdir "${FIG}/exploration"
+deck_args+=(--public-figures "${FIG}/public" --nasal-figures "${FIG}/nasal" --exploration-figures "${FIG}/exploration")
+
+# the whole probe panel in brain and accessible specimens (public_data/panel_expression_atlas.tsv), and the genes
+# of extra_genes.txt: public expression, and their swab results when GENE_SET=extra has been run
+mapfile -t EXTRA_GENES < <(sed 's/#.*//' "${ANALYSIS_DIR}/extra_genes.txt" 2>/dev/null | awk 'NF {print $1}')
+extra_csv="$(IFS=,; echo "${EXTRA_GENES[*]}")"
+python "${ANALYSIS_DIR}/scripts/panel_atlas_figures.py" --atlas "${ANALYSIS_DIR}/public_data/panel_expression_atlas.tsv" \
+  --genes "${genes_csv}${extra_csv:+,${extra_csv}}" --frequency "${ANALYSIS_DIR}/public_data/dee_gene_frequency.tsv" \
+  --outdir "${FIG}/atlas"
+deck_args+=(--atlas-figures "${FIG}/atlas")
+if [[ -n "${extra_csv}" ]]; then
+  python "${ANALYSIS_DIR}/scripts/public_data_figures.py" --public-dir "${ANALYSIS_DIR}/public_data" \
+    --genes "${extra_csv}" --outdir "${FIG}/public_extra"
+  deck_args+=(--extra-genes "${extra_csv}" --extra-public "${FIG}/public_extra")
+  if [[ -s "${PROJECT_DIR}/results_extra/figures/read_filter.tsv" ]]; then
+    deck_args+=(--extra-results "${PROJECT_DIR}/results_extra")
+  else
+    echo "[slides] no swab results for ${extra_csv} yet (GENE_SET=extra run): public data only for these genes"
+  fi
+fi
+else
+  deck_args+=(--gene-deck)
+fi
 
 # full path (all reads aligned, 07_qc_full.sh): capture QC, top genes, and the same gene read filter on the
 # genome-wide BAMs to see how many gene reads the k-mer baiting of the fast path recovered
@@ -104,7 +132,7 @@ if [[ -s "${QC_DIR}/per_sample_qc.tsv" ]]; then
     --qc-dir "${QC_DIR}" --fast-filter "${FIG}/read_filter.tsv" --full-filter "${FULL_FILTER}" \
     --outdir "${FIG}/full_path"
   full_args=(--full-figures "${FIG}/full_path")
-  if [[ -s "${FIG}/expression_qc/expression_qc.tsv" ]]; then
+  if (( MAIN )) && [[ -s "${FIG}/expression_qc/expression_qc.tsv" ]]; then
     full_args+=(--expression-figures "${FIG}/expression_qc")
   else
     echo "[slides] no expression QC yet (11_expression_qc.sh): panel on-target, PCA and correlation slides left out"
@@ -122,7 +150,7 @@ if [[ -s "${RIN_TSV}" && -s "${RESULTS_DIR}/fragmentation/filtered/fragmentation
     --martorella "${ANALYSIS_DIR}/public_data/martorella2023_summary.tsv" --genes "${genes_csv}" --outdir "${FIG}/rin"
   extra_args+=(--rin-figures "${FIG}/rin")
 fi
-if [[ -s "${QC_DIR}/composition/composition.tsv" ]]; then
+if (( MAIN )) && [[ -s "${QC_DIR}/composition/composition.tsv" ]]; then
   counts=()
   if [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then counts=(--gene-counts "${QC_DIR}/expression/gene_counts.tsv"); fi
   python "${ANALYSIS_DIR}/scripts/composition_figures.py" --composition-dir "${QC_DIR}/composition" "${counts[@]}" \
@@ -132,7 +160,7 @@ if [[ -s "${QC_DIR}/composition/composition.tsv" ]]; then
 else
   echo "[slides] no ${QC_DIR}/composition (12_rna_composition.sh): RNA composition slides left out"
 fi
-if [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then
+if (( MAIN )) && [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then
   python "${ANALYSIS_DIR}/scripts/sex_check.py" --counts "${QC_DIR}/expression/gene_counts.tsv" \
     --sample-sheet "${SAMPLE_SHEET}" --outdir "${FIG}/sex_check"
   extra_args+=(--sex-figures "${FIG}/sex_check")
@@ -142,7 +170,7 @@ fi
 # the repository (${PROJECT_DIR}/variants/patient_variants.tsv)
 var_args=()
 VARIANTS="${PROJECT_DIR}/variants/patient_variants.tsv"
-if [[ -s "${VARIANTS}" ]]; then
+if (( MAIN )) && [[ -s "${VARIANTS}" ]]; then
   python "${ANALYSIS_DIR}/scripts/variant_coverage.py" --variants "${VARIANTS}" --genes "${genes_csv}" --gtf "${GTF}" \
     --fasta "${GENOME}" --sample-sheet "${SAMPLE_SHEET}" --bam-pattern "${FAST_DIR}/bam_filtered/{gene}/{sample}.bam" \
     --outdir "${FIG}/variants"
@@ -160,8 +188,9 @@ done
 run_label="$(IFS=';'; echo "${labels[*]}" | sed 's/;/; /g')"
 
 mkdir -p "${RESULTS_DIR}/slides"
+deck="${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
+if (( ! MAIN )); then deck="${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_${GENE_SET}_genes.pptx"; fi
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
-  --public-figures "${FIG}/public" --nasal-figures "${FIG}/nasal" --exploration-figures "${FIG}/exploration" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" \
-  --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
-echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
+  "${deck_args[@]}" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" --out "${deck}"
+echo "[slides] done: ${deck}"
