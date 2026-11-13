@@ -2,12 +2,11 @@
 """Read coverage of one gene in every sample, from the gene-filtered BAMs.
 
 Figures
-  <GENE>_coverage_lines        one line per sample, overlaid: all reads (top) and spliced reads only (bottom), on the
+  <GENE>_coverage_lines        one line per sample, overlaid, on the
                                canonical (MANE) transcript with its introns shortened; kits in blue / red shades, one
                                shade per donor; the gene model below (UTR white, CDS grey)
   <GENE>_coverage_tracks       IGV-style: one coverage track per sample, each scaled to its own maximum ("[0 - max]"),
                                one colour per donor, genomic coordinates; the gene model below (CDS thick, UTR thin)
-  <GENE>_coverage_tracks_spliced   the same for spliced reads only
 Coverage counts aligned bases only (no deletions, no introns). Every drawn value is written to
 <GENE>_coverage.tsv.gz (bin, genomic start/end, sample, all-read and spliced-read coverage, for both x-axes).
 """
@@ -128,24 +127,22 @@ def main():
                         int(edges[i]), int(edges[i + 1]) - 1, sid, a[i], s[i]))
 
     lines_figure(args, model, shrink, cov, conditions, donors, by_key)
-    for k, suffix in ((0, ""), (1, "_spliced")):
-        tracks_figure(args, model, cov, conditions, donors, by_key, glo, ghi, k, suffix)
+    tracks_figure(args, model, cov, conditions, donors, by_key, glo, ghi, 0, "")
     print("{}: {} samples -> {}/{}_coverage_*.pdf/.png".format(args.gene, len(cov), args.outdir, args.gene))
 
 
 def lines_figure(args, model, shrink, cov, conditions, donors, by_key):
-    H = 5.3
+    H = 3.8
     fig = plt.figure(figsize=(W, H))
     left, right = 0.95, 0.15
-    panel_h, model_h = 1.7, 0.45
+    panel_h, model_h = 2.1, 0.45
     xs = (np.arange(args.bins) + 0.5) / args.bins
     order = []
     for ci, c in enumerate(conditions):
         for di, d in enumerate(donors):
             if by_key.get((d, c)) in cov:
                 order.append((by_key[(d, c)], c, d, CONDITION_SHADES[ci % 2][di % 4]))
-    for k, (label, y0) in enumerate((("Read coverage (all)", H - 0.75 - panel_h),
-                                     ("Read coverage (spliced)", H - 0.75 - 2 * panel_h - 0.25))):
+    for k, (label, y0) in enumerate((("Read coverage", H - 0.75 - panel_h),)):
         ax = fig.add_axes([left / W, y0 / H, (W - left - right) / W, panel_h / H])
         for sid, c, d, color in order:
             ax.plot(xs, cov[sid]["lines"][k], color=color, linewidth=1.1, alpha=0.85, solid_joinstyle="round")

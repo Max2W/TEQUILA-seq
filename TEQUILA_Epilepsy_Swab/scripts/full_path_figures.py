@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Figures from the full path (all reads aligned to the genome; 07_qc_full.sh), in the progress-deck style.
 
-  capture_qc        per sample: (a) mapping rate, (b) reads on each target gene as % of all reads (on-target rate),
-                    (c) median read length
+  capture_qc        per sample: (a) mapping rate, (b) median read length (the panel on-target rate is drawn by
+                    scripts/expression_qc.py)
   top_genes         genes collecting the most mapped reads, all samples pooled; target genes highlighted
   bait_recovery     gene-filtered reads found by the fast path (k-mer baiting, step 03) against those found by
-                    aligning every read (full path), per gene and sample; the same for spliced reads
+                    aligning every read (full path), per gene and sample
 Inputs: qc/per_sample_qc.tsv and qc/top_genes.tsv (07_qc_full.sh), the gene read filter tables of the fast path
 (results/figures/read_filter.tsv) and of the full path (full_read_filter.tsv, same filter on qc/bam/<sample>.bam).
 Every drawn number goes to full_path_figures.tsv.
@@ -79,37 +79,25 @@ def main():
     for r in read_tsv(os.path.join(args.qc_dir, "top_genes.tsv")):
         if r["flowcell"] == "all" and r["sample_id"] in qc:
             per_sample_top[r["sample_id"]][r["gene"]] = int(r["reads"])
-    fig, axes = plt.subplots(1, 4, figsize=(12.3, 3.6), gridspec_kw={"width_ratios": [1, 1.3, 1, 1]})
-    fig.subplots_adjust(left=0.05, right=0.965, top=0.86, bottom=0.25, wspace=0.42)
+    fig, axes = plt.subplots(1, 2, figsize=(8.5, 3.6))
+    fig.subplots_adjust(left=0.08, right=0.97, top=0.86, bottom=0.25, wspace=0.35)
     x = np.arange(len(order))
     colors = [KIT_COLORS[kits.index(kit_of[s]) % 2] for s in order]
     mr = [int(qc[s]["mapped"]) / int(qc[s]["reads"]) * 100 for s in order]
     axes[0].bar(x, mr, width=0.8, color=colors)
     axes[0].set_ylim(0, 100)
     axes[0].set_ylabel("Reads mapped to the genome (%)")
-    w = 0.8 / len(genes)
-    for k, g in enumerate(genes):
-        # from the read counts: the rates in per_sample_qc.tsv are rounded
-        v = [int(qc[s].get("{}_reads".format(g), 0)) / int(qc[s]["reads"]) * 100 for s in order]
-        axes[1].bar(x - 0.4 + w * (k + 0.5), v, width=w, color=GENE_COLORS[k % 4], label=g)
-        rows += [("on_target_percent", g, s, "{:.5f}".format(val)) for s, val in zip(order, v)]
-    leg = axes[1].legend(frameon=False, fontsize=9, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=len(genes))
-    for t in leg.get_texts():
-        t.set_fontstyle("italic")
-    axes[1].set_ylabel("Reads on the gene (% of all reads)")
-    inter = [per_sample_top[s].get("intergenic", 0) / int(qc[s]["mapped"]) * 100 for s in order]
-    axes[2].bar(x, inter, width=0.8, color=colors)
-    axes[2].set_ylabel("Reads outside annotated genes\n(% of mapped reads)")
     ml = [float(qc[s]["median_read_length"]) for s in order]
-    axes[3].bar(x, ml, width=0.8, color=colors)
-    axes[3].set_ylabel("Median read length (nt)")
-    for i, (ax, letter) in enumerate(zip(axes, "abcd")):
+    axes[1].bar(x, ml, width=0.8, color=colors)
+    axes[1].set_ylabel("Median read length (nt)")
+    for ax, letter in zip(axes, "ab"):
         labels(ax, order)
         classic(ax)
         ax.set_title(letter, loc="left", fontweight="bold")
     handles = [plt.Rectangle((0, 0), 1, 1, color=KIT_COLORS[i % 2]) for i in range(len(kits))]
-    axes[3].legend(handles, kits, frameon=False, fontsize=9, loc="lower right", bbox_to_anchor=(1.0, 1.0), ncol=2)
+    axes[1].legend(handles, kits, frameon=False, fontsize=9, loc="lower right", bbox_to_anchor=(1.0, 1.0), ncol=2)
     save(fig, os.path.join(args.outdir, "capture_qc"))
+    inter = [per_sample_top[s].get("intergenic", 0) / int(qc[s]["mapped"]) * 100 for s in order]
     rows += [("mapping_rate_percent", "", s, "{:.2f}".format(v)) for s, v in zip(order, mr)]
     rows += [("intergenic_percent_of_mapped", "", s, "{:.2f}".format(v)) for s, v in zip(order, inter)]
     rows += [("median_read_length", "", s, "{:.0f}".format(v)) for s, v in zip(order, ml)]
@@ -149,37 +137,33 @@ def main():
     if args.full_filter and os.path.exists(args.full_filter):
         fast = {(r["gene"], r["sample_id"]): r for r in read_tsv(args.fast_filter)}
         full = {(r["gene"], r["sample_id"]): r for r in read_tsv(args.full_filter)}
-        fig, axes = plt.subplots(1, 2, figsize=(9.5, 4.0))
-        fig.subplots_adjust(left=0.09, right=0.98, top=0.9, bottom=0.14, wspace=0.3)
-        for ax, col, what, letter in ((axes[0], "kept", "gene reads", "a"),
-                                      (axes[1], "spliced_kept", "spliced gene reads", "b")):
-            lo, hi = None, 1
-            for k, g in enumerate(genes):
-                pts = [(int(full[(g, s)][col]), int(fast[(g, s)][col])) for s in samples
-                       if (g, s) in full and (g, s) in fast]
-                if not pts:
-                    continue
-                a, b = np.array(pts, float).T
-                ax.scatter(np.maximum(a, 0.8), np.maximum(b, 0.8), s=28, color=GENE_COLORS[k % 4], label=g,
-                           edgecolor="black", linewidth=0.4, zorder=3)
-                hi = max(hi, a.max(), b.max())
-                low = max(min(a.min(), b.min()), 1)
-                lo = low if lo is None else min(lo, low)
-                rows += [("{}_full_vs_fast".format(col), g, s, "{}/{}".format(int(fa), int(fb)))
-                         for s, (fa, fb) in zip([s for s in samples if (g, s) in full and (g, s) in fast], pts)]
-            lo = (lo or 1) / 2
-            ax.plot([lo, hi * 1.5], [lo, hi * 1.5], color="#999999", linewidth=0.8, linestyle="--", zorder=1)
-            ax.set_xscale("log")
-            ax.set_yscale("log")
-            ax.set_xlim(lo, hi * 1.5)
-            ax.set_ylim(lo, hi * 1.5)
-            ax.set_xlabel("Full path: all reads aligned ({})".format(what))
-            ax.set_ylabel("Fast path: k-mer baited ({})".format(what))
-            ax.set_title(letter, loc="left", fontweight="bold")
-            leg = ax.legend(frameon=False, fontsize=9, loc="upper left")
-            for t in leg.get_texts():
-                t.set_fontstyle("italic")
-            classic(ax)
+        fig, ax = plt.subplots(figsize=(5.2, 4.2))
+        fig.subplots_adjust(left=0.17, right=0.97, top=0.95, bottom=0.14)
+        col = "kept"
+        lo, hi = None, 1
+        for k, g in enumerate(genes):
+            done = [s for s in samples if (g, s) in full and (g, s) in fast]
+            pts = [(int(full[(g, s)][col]), int(fast[(g, s)][col])) for s in done]
+            if not pts:
+                continue
+            a_, b_ = np.array(pts, float).T
+            ax.scatter(a_, b_, s=34, color=GENE_COLORS[k % 4], label=g, edgecolor="black", linewidth=0.4, zorder=3)
+            hi = max(hi, a_.max(), b_.max())
+            low = max(min(a_.min(), b_.min()), 1)
+            lo = low if lo is None else min(lo, low)
+            rows += [("kept_full_vs_fast", g, s, "{}/{}".format(fa, fb)) for s, (fa, fb) in zip(done, pts)]
+        lo = (lo or 1) / 2
+        ax.plot([lo, hi * 1.5], [lo, hi * 1.5], color="#999999", linewidth=0.8, linestyle="--", zorder=1)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlim(lo, hi * 1.5)
+        ax.set_ylim(lo, hi * 1.5)
+        ax.set_xlabel("Gene reads, all reads aligned (full path)")
+        ax.set_ylabel("Gene reads, k-mer baited (fast path)")
+        leg = ax.legend(frameon=False, fontsize=9, loc="upper left")
+        for t in leg.get_texts():
+            t.set_fontstyle("italic")
+        classic(ax)
         save(fig, os.path.join(args.outdir, "bait_recovery"))
 
     with open(os.path.join(args.outdir, "full_path_figures.tsv"), "w") as fh:

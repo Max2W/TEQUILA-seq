@@ -5,15 +5,15 @@
 #   2. detection + fragmentation on the filtered reads (scripts/fragment_report.py)
 #      -> ${RESULTS_DIR}/fragmentation/filtered/
 #   3. per gene -> ${RESULTS_DIR}/figures/<GENE>/
-#      - scripts/gene_figure.py (filtered reads): sashimi per sample, IGV-style reads, gene-body coverage, spliced /
-#        unspliced / full-length reads -> <GENE>_figure.{pdf,png}
-#      - scripts/coverage_plot.py (filtered reads): overlaid coverage lines (all / spliced reads) on the
-#        intron-shortened canonical transcript, and IGV-style coverage tracks per sample (all / spliced)
+#      - scripts/gene_figure.py (gene reads): sashimi per sample, IGV-style reads, gene-body coverage, reads and
+#        full-length reads -> <GENE>_figure.{pdf,png}
+#      - scripts/coverage_plot.py (gene reads): overlaid coverage lines on the intron-shortened canonical
+#        transcript, and IGV-style coverage tracks per sample
 #      - scripts/isoform_abundance_plot.py, for each isoform quantification that exists (ESPRESSO_fast,
 #        AMALGAM_fast, AMALGAM_full, ESPRESSO_full): isoform CPM stacked bars by donor with the isoform
 #        structures below, and as one panel
-#   4. IGV-style pages per gene and sample (scripts/igv_plot.py), filtered reads, only the gene of
-#      interest annotated; all reads and spliced reads only -> ${RESULTS_DIR}/figures/<GENE>/igv/
+#   4. IGV-style pages per gene and sample (scripts/igv_plot.py), gene reads, only the gene of
+#      interest annotated -> ${RESULTS_DIR}/figures/<GENE>/igv/
 #   5. Figures 1-2 and the paired kit comparison (scripts/pub_figures.py) -> ${RESULTS_DIR}/figures/
 #
 # Light work (minutes, a few GB): LOCAL=1 runs it here instead of submitting it.
@@ -109,10 +109,7 @@ EOF_METHODS
     for ext in pdf png; do  # png for the slide deck (step 10)
       python "${ANALYSIS_DIR}/scripts/igv_plot.py" --bam "${bam}" --region "${region}" --fasta "${GENOME}" \
         --gtf "${out}/igv/${gene}_only.gtf" --outfile "${out}/igv/${gene}_${sample}_all_reads.${ext}" \
-        --title "${gene}  ${sample}  ${region}  (gene-filtered reads)"
-      python "${ANALYSIS_DIR}/scripts/igv_plot.py" --bam "${bam}" --region "${region}" --fasta "${GENOME}" \
-        --gtf "${out}/igv/${gene}_only.gtf" --outfile "${out}/igv/${gene}_${sample}_spliced_reads.${ext}" \
-        --spliced-only --title "${gene}  ${sample}  ${region}  (gene-filtered, spliced reads only)"
+        --title "${gene}  ${sample}  ${region}  (gene reads)"
     done
   done
 done

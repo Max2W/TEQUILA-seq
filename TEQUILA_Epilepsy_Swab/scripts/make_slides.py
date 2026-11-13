@@ -12,6 +12,7 @@ import os
 import re
 from collections import defaultdict
 
+import numpy as np
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
@@ -63,8 +64,14 @@ def parse_args():
     p.add_argument("--public-figures", help="figures of scripts/public_data_figures.py")
     p.add_argument("--rin", help="optional TSV with sample_id, RIN of this pilot's swab RNA")
     p.add_argument("--full-figures", help="figures of scripts/full_path_figures.py (all reads aligned)")
+    p.add_argument("--expression-figures", help="figures of scripts/expression_qc.py (11_expression_qc.sh)")
     p.add_argument("--out", required=True)
     return p.parse_args()
+
+
+def panel_size():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "panel_genes.txt")
+    return sum(1 for l in open(path) if l.strip() and not l.startswith("#")) if os.path.exists(path) else "NA"
 
 
 def read_tsv(path):
@@ -236,9 +243,10 @@ def main():
         D.picture(s, path, 2.2, 1.45, 8.9, 3.85)
         per = [total[x] / 1e6 for x in samples]
         D.bullets(s, [
-            "Prepared a multiplexed TEQUILA-seq library ({} target gene{}) from buccal swab RNA of {} donors "
-            "collected with {} kits ({}), based on ONT sequencing kit SQK-NBD114.24".format(
-                len(genes), "s" if len(genes) > 1 else "", len({r["donor"] for r in sheet}), len(kits),
+            "Prepared a multiplexed TEQUILA-seq library ({}-gene epilepsy and neurodevelopmental disorder probe "
+            "panel; genes of interest {}) from buccal swab RNA of {} donors collected with {} kits ({}), based on "
+            "ONT sequencing kit SQK-NBD114.24".format(
+                panel_size(), " and ".join(genes), len({r["donor"] for r in sheet}), len(kits),
                 "; ".join("{}: {}".format(k, kit_text[k]) for k in kits)),
             "Sequenced on {}: {:.1f} M reads in total, {} M per sample".format(
                 args.run_label, sum(per), fmt_range(per, 1))], 0.4, 5.3, SW - 0.8, 2.0, size=14)
@@ -246,8 +254,8 @@ def main():
     if args.full_figures and os.path.isdir(args.full_figures):
         full_path_slides(D, args, genes, samples, filt)
 
-    # 4. detection (Figure 1)
-    path = os.path.join(fig, "figure1.png")
+    # 4. detection: reads of the two genes per swab
+    path = os.path.join(deck_dir, "gene_reads.png")
     if os.path.exists(path) and filt:
         detected = {g: sum(1 for x in samples if int(filt.get((g, x), {}).get("kept", 0)) > 0) for g in genes}
         all_det = all(detected[g] == len(samples) for g in genes)
@@ -255,23 +263,18 @@ def main():
             " and ".join(genes) + (" are" if len(genes) > 1 else " is"),
             "all {} swabs".format(len(samples)) if all_det else "; ".join(
                 "{} in {} of {} swabs".format(g, detected[g], len(samples)) for g in genes)))
-        D.picture(s, path, 0.4, 1.4, SW - 0.8, 3.85)
+        D.picture(s, path, 0.6, 1.4, SW - 1.2, 4.1)
+        kit_of = {r["sample_id"]: r["condition"] for r in sheet}
         items = []
         for g in genes:
-            kept = [int(filt[(g, x)]["kept"]) for x in samples if (g, x) in filt]
-            rpm = [int(filt[(g, x)]["kept"]) / total[x] * 1e6 for x in samples if (g, x) in filt]
-            spl = [int(filt[(g, x)]["spliced_kept"]) / max(int(filt[(g, x)]["kept"]), 1) * 100
-                   for x in samples if (g, x) in filt]
-            items.append("{}: {} gene reads per sample ({} per million); {} spliced".format(
-                g, fmt_range(kept), fmt_range(rpm), fmt_range(spl, 0, True)))
-            k = kit.get(("reads_per_million", g))
-            if k and len(kits) == 2:
-                items.append((1, "{} vs {}: mean log2 ratio {}, higher in {} of {} donors (paired t p = {})".format(
-                    kits[1], kits[0], k["mean_log2_ratio_{}_vs_{}".format(kits[1], kits[0])],
-                    k["donors_higher_in_{}".format(kits[1])], k["n_donors"], k["paired_t_p"])))
-        D.bullets(s, items, 0.6, 5.3, SW - 1.2, 1.6, size=14)
-        D.note(s, "Gene reads: primary alignments with >= 50% of aligned bases on the gene's exons, more than on any "
-                  "other gene, and (spliced reads) on the gene's strand", size=11)
+            parts = []
+            for k in kits:
+                xs = [x for x in samples if kit_of[x] == k and (g, x) in filt]
+                parts.append("{} {} reads ({} per million)".format(
+                    k, fmt_range([int(filt[(g, x)]["kept"]) for x in xs]),
+                    fmt_range([int(filt[(g, x)]["kept"]) / total[x] * 1e6 for x in xs])))
+            items.append("{}: {}".format(g, "; ".join(parts)))
+        D.bullets(s, items, 0.6, 5.6, SW - 1.2, 1.3, size=15)
 
     # 5. fragmentation (Figure 2)
     path = os.path.join(fig, "figure2.png")
@@ -285,7 +288,7 @@ def main():
             "{:,} full-length {} reads".format(fl[g], g) for g in genes if fl[g] is not None) + " in total" \
             if all(fl[g] is not None for g in genes) else "Fragmentation of {} transcripts".format(" and ".join(genes))
         s = D.slide(title)
-        D.picture(s, path, 0.3, 1.45, 8.3, 5.3)
+        D.picture(s, path, 0.3, 1.5, 8.6, 3.6)
         items = []
         for g in genes:
             k = kit.get(("median_transcript_coverage", g))
@@ -314,16 +317,15 @@ def main():
     if filt:
         for g in genes:
             kept = [int(filt[(g, x)]["kept"]) for x in samples if (g, x) in filt]
-            spl = [int(filt[(g, x)]["spliced_kept"]) for x in samples if (g, x) in filt]
-            items.append("{}: detected in {} of {} swabs ({} gene reads, {} spliced reads per sample)".format(
-                g, sum(1 for v in kept if v > 0), len(samples), fmt_range(kept), fmt_range(spl)))
+            items.append("{}: detected in {} of {} swabs ({} reads per swab)".format(
+                g, sum(1 for v in kept if v > 0), len(samples), fmt_range(kept)))
     for g in genes:
         drawn = read_tsv(os.path.join(deck_dir, "{}_events_drawn.tsv".format(g)))
         if drawn:
             items.append("{}: {} splicing event(s) with >= 20 reads, see the event slides".format(g, len(drawn)))
     items += ["Isoform proportions from fragmented swab RNA should be read with care: partial reads are assigned to "
               "isoforms they are compatible with",
-              "Open question: was DNase treatment used for each kit? Unspliced reads may include genomic DNA"]
+              "Open question: was DNase treatment used for each kit? Some gene reads may come from genomic DNA"]
     D.bullets(s, items, 0.8, 1.6, SW - 1.6, 5.4, size=18)
 
     # appendix: the earlier isoform CPM figures
@@ -360,7 +362,7 @@ def main():
         if os.path.exists(q):
             blocks.append(("{} isoform proportions compared between quantification methods".format(g), q))
     frag = os.path.join(results, "fragmentation", "filtered")
-    frag_figs = [("{} fragmentation (gene-filtered reads)".format(g), os.path.join(frag, "{}_fragmentation.png".format(g)))
+    frag_figs = [("{} fragmentation".format(g), os.path.join(frag, "{}_fragmentation.png".format(g)))
                  for g in genes] + [("Detection and full-length reads, all genes and swabs",
                                      os.path.join(frag, "overview.png"))]
     frag_figs = [(t, q) for t, q in frag_figs if os.path.exists(q)]
@@ -381,24 +383,13 @@ def full_path_slides(D, args, genes, samples, fast_filt):
         vals[(r["measure"], r["gene"])][r["sample_id"]] = r["value"]
     p = os.path.join(ff, "capture_qc.png")
     if os.path.exists(p):
-        on = {g: [float(v) for v in vals[("on_target_percent", g)].values()] for g in genes}
-        s = D.slide("On-target rate: " + "; ".join("{} {} of all reads".format(g, fmt_range(on[g], 3, True))
-                                                     for g in genes if on[g]), size=28)
-        D.picture(s, p, 0.4, 1.45, SW - 0.8, 3.6)
         mr = [float(v) for v in vals[("mapping_rate_percent", "")].values()]
         ml = [float(v) for v in vals[("median_read_length", "")].values()]
-        inter = vals[("intergenic_percent_of_mapped", "")]
-        kit_of = {r["sample_id"]: r["condition"] for r in read_tsv(args.sample_sheet)}
-        by_kit = defaultdict(list)
-        for x, v in inter.items():
-            by_kit[kit_of.get(x, "")].append(float(v))
-        items = ["All reads aligned to the genome (minimap2, full path): {} mapped; median read length {} nt".format(
-                     fmt_range(mr, 0, True), fmt_range(ml)),
-                 "On-target = reads overlapping the gene's annotated span, as % of all reads sequenced"]
-        if inter:
-            items.append("Reads outside annotated genes: " + "; ".join(
-                "{} {}".format(k, fmt_range(v, 0, True)) for k, v in by_kit.items()) + " of mapped reads")
-        D.bullets(s, items, 0.5, 5.15, SW - 1.0, 1.6, size=14)
+        s = D.slide("{} of reads map to the genome; median read length {} nt".format(fmt_range(mr, 0, True),
+                                                                                  fmt_range(ml)))
+        D.picture(s, p, 1.5, 1.45, SW - 3.0, 4.6)
+        D.note(s, "All reads aligned to the genome with minimap2 (full path)", size=11)
+    expression_slides(D, args, genes, "capture")
     p = os.path.join(ff, "top_genes.png")
     if os.path.exists(p):
         ranked = [r for r in read_tsv(os.path.join(ff, "full_path_figures.tsv"))
@@ -434,16 +425,67 @@ def full_path_slides(D, args, genes, samples, fast_filt):
         s = D.slide("k-mer baiting recovers " + "; ".join("{} of {} gene reads".format(fmt_range(rec[g], 0, True), g)
                                                           for g in genes if rec[g]) + " found by aligning all reads",
                     size=26)
-        D.picture(s, p, 0.4, 1.45, 8.2, 5.2)
-        items = []
-        for g in genes:
-            pairs = [tuple(map(int, v.split("/"))) for v in vals[("spliced_kept_full_vs_fast", g)].values()]
-            sp = [b / a * 100 for a, b in pairs if a > 0]
-            if sp:
-                items.append("{}: spliced gene reads recovered {}".format(g, fmt_range(sp, 0, True)))
-        items.append("Both paths use the same gene read filter; fast path = reads carrying gene-unique 31-mers, "
-                     "aligned afterwards")
+        D.picture(s, p, 0.6, 1.45, 6.6, 5.3)
+        items = ["Full path: every read aligned to the genome",
+                 "Fast path: only reads carrying 31-mers unique to the gene, aligned afterwards",
+                 "Both count the gene's reads the same way, so the fast-path numbers in this deck are complete"]
         D.bullets(s, items, 8.8, 1.7, 4.3, 5.0, size=15)
+    expression_slides(D, args, genes, "samples")
+
+
+def expression_slides(D, args, genes, part):
+    ef = args.expression_figures
+    if not ef or not os.path.isdir(ef):
+        return
+    vals = defaultdict(dict)
+    for r in read_tsv(os.path.join(ef, "expression_qc.tsv")):
+        vals[r["measure"]][r["sample_or_pair"]] = r["value"]
+    n_panel = sum(1 for l in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "panel_genes.txt"))
+                  if l.strip() and not l.startswith("#"))
+    p = os.path.join(ef, "panel_capture.png")
+    if part == "capture" and os.path.exists(p):
+        on = [float(v) for v in vals["on_target_percent"].values()]
+        s = D.slide("On-target rate on the {}-gene panel: {} of all reads".format(n_panel, fmt_range(on, 1, True)))
+        D.picture(s, p, 0.4, 1.45, SW - 0.8, 4.0)
+        items = ["On-target = reads overlapping any of the {} probe-panel genes, as % of all reads sequenced".format(
+            n_panel)]
+        for part, what in (("Outside_annotated_genes", "outside annotated genes"), ("Unmapped", "unmapped")):
+            v = [float(x) for x in vals.get("reads_percent_" + part, {}).values()]
+            if v:
+                items.append("Reads {}: {}".format(what, fmt_range(v, 0, True)))
+        D.bullets(s, items, 0.5, 5.5, SW - 1.0, 1.4, size=14)
+    for name, title, note in (
+            ("pca", "Samples cluster by {} in gene expression", "PCA of log2(CPM + 1); genes with CPM >= 1 in at "
+             "least 2 swabs; all reads aligned (full path)"),
+            ("correlation", "Gene expression correlation between swabs", "Pearson correlation of log2(CPM + 1)"),
+            ("kit_scatter", "Panel gene expression, Zymo against Genotek, per donor",
+             "Each point is a panel gene; log2(CPM + 1); dashed line: equal expression")):
+        p = os.path.join(ef, name + ".png")
+        if part != "samples" or not os.path.exists(p):
+            continue
+        if name == "pca":
+            title = title.format(pca_grouping(vals))
+        s = D.slide(title)
+        D.picture(s, p, 0.4, 1.45, SW - 0.8, 5.2)
+        D.note(s, note, size=11)
+
+
+def pca_grouping(vals):
+    """'kit' or 'donor' or 'neither': which grouping separates the swabs along PC1 (all genes)."""
+    pts = {k: float(v.split(",")[0]) for k, v in vals.get("PC1_PC2_all", {}).items()}
+    if len(pts) < 4:
+        return "kit or donor"
+    by_kit, by_donor = defaultdict(list), defaultdict(list)
+    for sid, x in pts.items():
+        kit, donor = sid.split("_", 1) if "_" in sid else (sid, "")
+        by_kit[kit].append(x)
+        by_donor[donor].append(x)
+    def between(groups):
+        allv = np.array([x for g in groups.values() for x in g])
+        ss_tot = ((allv - allv.mean()) ** 2).sum() or 1
+        return sum(len(g) * (np.mean(g) - allv.mean()) ** 2 for g in groups.values()) / ss_tot
+    k, d = between(by_kit), between(by_donor)
+    return "kit" if k > d else "donor"
 
 
 def public_slides(D, args, genes, samples):
@@ -505,7 +547,7 @@ def public_slides(D, args, genes, samples):
         s = D.slide("Public expression of {} in oral and accessible tissues".format(" and ".join(genes)))
         rows = [["Source", "Tissue"] + genes]
         for src, tissues in (("GTEx v10 (median TPM)", ["Minor Salivary Gland", "Esophagus - Mucosa", "Whole Blood",
-                                                         "Cells - Cultured fibroblasts", "Brain - Cortex"]),
+                                                         "Cultured fibroblasts", "Brain - Cortex"]),
                              ("HPA (nTPM)", ["salivary gland", "tongue", "esophagus", "cerebral cortex"])):
             key = "GTEx v10" if src.startswith("GTEx") else "Human Protein Atlas"
             for t in tissues:
@@ -515,8 +557,9 @@ def public_slides(D, args, genes, samples):
                                                                for v in vals])
         D.table(s, rows, 0.5, 1.6, 6.6, [2.2, 2.4] + [1.0] * len(genes), size=12)
         D.bullets(s, [
-            "RNA diagnostics in clinically accessible tissues has used blood, fibroblasts, lymphoblastoid cells and "
-            "muscle, not buccal swabs (Cummings 2017; Fresard 2019; Aicher 2020; Murdock 2021)",
+            "Clinical RNA-seq for rare-disease diagnosis (genome-wide, not these two genes) has used blood, "
+            "fibroblasts, lymphoblastoid cells and muscle, not buccal swabs (Cummings 2017; Fresard 2019; Aicher "
+            "2020; Murdock 2021)",
             "Buccal and saliva RNA are degraded and partly non-human, so fewer genes are captured (Martorella 2023)",
             "Detection of these two genes in buccal swab RNA has not, to our knowledge, been reported"],
             7.5, 1.6, 5.4, 5.0, size=15)
@@ -529,14 +572,15 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
     gdir = os.path.join(fig, g)
     p = os.path.join(gdir, "{}_coverage_lines.png".format(g))
     if os.path.exists(p):
-        s = D.slide("Read coverage along {}: all reads and spliced reads".format(g))
+        s = D.slide("Read coverage along {} in each swab".format(g))
         D.picture(s, p, 2.0, 1.45, 9.3, 5.4)
-        D.note(s, "Gene-filtered reads; introns shortened; spliced reads = reads with at least one intron", size=11)
+        D.note(s, "Reads of the gene summed per position; introns shortened. Coverage adds up many short reads, so it "
+                  "does not show fragmentation by itself: see the full-length reads and read-length slide", size=11)
     p = os.path.join(gdir, "{}_coverage_tracks.png".format(g))
     if os.path.exists(p):
         s = D.slide("{} read coverage per swab".format(g))
         D.picture(s, p, 2.0, 1.45, 9.3, 5.4)
-        D.note(s, "Gene-filtered reads, genomic coordinates; each track is scaled to its own maximum [0 - max]",
+        D.note(s, "Reads of the gene, genomic coordinates; each track is scaled to its own maximum [0 - max]",
                size=11)
 
     iso = read_tsv(os.path.join(deck_dir, "{}_isoforms.tsv".format(g)))
@@ -592,7 +636,7 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
         s = D.slide(title, size=28)
         D.picture(s, p, 0.3, 1.4, SW - 0.6, 5.2)
         D.note(s, "{}:{:,}-{:,}. *{} levels were estimated as the number of {} reads divided by the number of {} "
-                  "reads (minimum of 20 reads in denominator); gene-filtered reads".format(
+                  "reads (minimum of 20 reads in denominator)".format(
                       one["chrom"], int(one["start"]), int(one["end"]),
                       "Exon inclusion" if is_ce else "Splice site usage",
                       "inclusion junction" if is_ce else "alternative junction",
@@ -606,25 +650,25 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
                       "per-swab floor are hidden)",
                       "b  IGV-style reads, 25 per swab; full-length reads darker",
                       "c  Gene-body coverage along the canonical transcript, 5' to 3'",
-                      "d  Reads on canonical exons, spliced and unspliced; the number above each bar is the count of "
+                      "d  Reads on canonical exons; the number above each bar is the count of "
                       "full-length reads"], 7.3, 1.7, 5.6, 5.0, size=15)
-        D.note(s, "Gene-filtered reads; canonical (MANE) gene model; introns shortened", size=11)
+        D.note(s, "Reads of the gene; canonical (MANE) gene model; introns shortened", size=11)
     kits = list(dict.fromkeys(r["condition"] for r in sheet))
     by = {(r["donor"], r["condition"]): r["sample_id"] for r in sheet}
     for d in dict.fromkeys(r["donor"] for r in sheet):
-        for kind, what in (("all_reads", "all gene-filtered reads"), ("spliced_reads", "spliced reads only")):
+        for kind, what in (("all_reads", "reads of the gene"),):
             pics = [(k, os.path.join(gdir, "igv", "{}_{}_{}.png".format(g, by[(d, k)], kind)))
                     for k in kits if (d, k) in by]
             pics = [(k, q) for k, q in pics if os.path.exists(q)]
             if not pics:
                 continue
-            s = D.slide("{} IGV view, donor {}: {}".format(g, d, what), size=28)
+            s = D.slide("{} IGV view, donor {}".format(g, d), size=28)
             w = (SW - 0.6 - 0.2 * (len(pics) - 1)) / len(pics)
             for i, (k, q) in enumerate(pics):
                 x = 0.3 + i * (w + 0.2)
                 D.caption(s, k, x, 1.4, w)
                 D.picture(s, q, x, 1.85, w, 4.9)
-            D.note(s, "Gene-filtered reads; only {} annotated".format(g), size=11)
+            D.note(s, "Reads of {}; only {} annotated".format(g, g), size=11)
 
 
 if __name__ == "__main__":

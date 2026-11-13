@@ -12,7 +12,7 @@ Panels
   b  IGV-style reads: up to --reads-per-sample reads per sample (random, seeded), drawn as aligned blocks with thin
      intron lines; reads that reach both the first and the last canonical exon (full length) are drawn darker
   c  gene-body coverage along the canonical transcript, 5' -> 3': fraction of the sample's reads covering each 1%
-  d  reads per sample on canonical exons, split into spliced and unspliced; the number above each bar is the count of
+  d  reads per sample on canonical exons; the number above each bar is the count of
      full-length reads
 
 Outputs: <outdir>/<GENE>_figure.pdf, .png (300 dpi) and <GENE>_figure_data.tsv (every number drawn in c and d, and the
@@ -374,20 +374,14 @@ def main():
     panel_letter(ax_c, "c", dx=-0.16)
 
     xb = np.arange(n)
-    sp = np.array([p["n_spliced"] for p in per])
-    un = np.array([p["n_on"] - p["n_spliced"] for p in per])
-    ax_d.bar(xb, sp, color=[colors[p["kit"]] for p in per], width=0.7, lw=0, label="spliced")
-    ax_d.bar(xb, un, bottom=sp, color=[colors[p["kit"]] for p in per], alpha=0.35, width=0.7, lw=0,
-             label="unspliced")
+    tot = np.array([p["n_on"] for p in per])
+    ax_d.bar(xb, tot, color=[colors[p["kit"]] for p in per], width=0.7, lw=0)
     for i, p in enumerate(per):
-        ax_d.text(i, sp[i] + un[i], "{:,}".format(p["n_full"]), ha="center", va="bottom", fontsize=5)
+        ax_d.text(i, tot[i], "{:,}".format(p["n_full"]), ha="center", va="bottom", fontsize=5)
     ax_d.set_xticks(xb)
     ax_d.set_xticklabels([p["sample"] for p in per], rotation=45, ha="right", fontsize=5.5)
     ax_d.set_ylabel("reads on canonical exons", fontsize=6)
-    ax_d.set_ylim(0, max(1, (sp + un).max()) * 1.18)
-    ax_d.legend(handles=[Rectangle((0, 0), 1, 1, color="#555555"), Rectangle((0, 0), 1, 1, color="#555555", alpha=0.35)],
-                labels=["spliced", "unspliced"], fontsize=5, frameon=False, loc="upper left", ncol=2,
-                bbox_to_anchor=(0, 1.13))
+    ax_d.set_ylim(0, max(1, tot.max()) * 1.18)
     ax_d.set_title("number above bar = full-length reads", fontsize=5, loc="right", pad=2)
     theme_classic(ax_d)
     panel_letter(ax_d, "d", dx=-0.16)

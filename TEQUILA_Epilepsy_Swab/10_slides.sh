@@ -59,7 +59,8 @@ done
 
 python "${ANALYSIS_DIR}/scripts/deck_figures.py" --genes "${genes_csv}" --gtf "${GTF}" --fasta "${GENOME}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" \
-  --bam-pattern "${FAST_DIR}/bam_filtered/{gene}/{sample}.bam" "${iso_args[@]}" --outdir "${FIG}/deck"
+  --bam-pattern "${FAST_DIR}/bam_filtered/{gene}/{sample}.bam" "${iso_args[@]}" --gene-reads "${FIG}/read_filter.tsv" \
+  --outdir "${FIG}/deck"
 
 # public data and literature figures (inputs committed under public_data/; optional rin.tsv of this pilot)
 rin_args=(); rin_slide=()
@@ -90,6 +91,11 @@ if [[ -s "${QC_DIR}/per_sample_qc.tsv" ]]; then
     --qc-dir "${QC_DIR}" --fast-filter "${FIG}/read_filter.tsv" --full-filter "${FULL_FILTER}" \
     --outdir "${FIG}/full_path"
   full_args=(--full-figures "${FIG}/full_path")
+  if [[ -s "${FIG}/expression_qc/expression_qc.tsv" ]]; then
+    full_args+=(--expression-figures "${FIG}/expression_qc")
+  else
+    echo "[slides] no expression QC yet (11_expression_qc.sh): panel on-target, PCA and correlation slides left out"
+  fi
 else
   echo "[slides] no ${QC_DIR}/per_sample_qc.tsv (07_qc_full.sh): full-path slides left out"
 fi

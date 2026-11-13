@@ -60,7 +60,8 @@ def classic(ax):
 
 
 def nice(tissue_id):
-    return tissue_id.replace("_", " ").replace("Brain ", "Brain - ").replace("Cells ", "Cells - ")
+    short = {"Cells_EBV-transformed_lymphocytes": "EBV lymphocytes", "Cells_Cultured_fibroblasts": "Cultured fibroblasts"}
+    return short.get(tissue_id) or tissue_id.replace("_", " ").replace("Brain ", "Brain - ")
 
 
 def save(fig, path):
@@ -137,7 +138,7 @@ def gtex_box(args, gene):
     d = json.load(open(os.path.join(args.public_dir, "raw", "gtex_v10_samples_{}.json".format(gene))))["data"]
     tissues = sorted(d, key=lambda t: -np.median(t["data"]))
     fig, ax = plt.subplots(figsize=(12.3, 4.6))
-    fig.subplots_adjust(left=0.06, right=0.99, top=0.95, bottom=0.42)
+    fig.subplots_adjust(left=0.06, right=0.955, top=0.95, bottom=0.42)
     data = [t["data"] for t in tissues]
     bp = ax.boxplot(data, widths=0.7, showfliers=False, patch_artist=True,
                     medianprops=dict(color="black", linewidth=1.0), whiskerprops=dict(linewidth=0.6),
@@ -150,12 +151,18 @@ def gtex_box(args, gene):
     for lbl, t in zip(ax.get_xticklabels(), tissues):
         if t["tissueSiteDetailId"] in ACCESSIBLE:
             lbl.set_fontweight("bold")
+            lbl.set_color(ACCESSIBLE[t["tissueSiteDetailId"]][1] if t["tissueSiteDetailId"] != "Minor_Salivary_Gland"
+                          else "#B8860B")
+    # accessible tissues can sit far below brain (STXBP1): a full-height band in their colour keeps them visible
+    for i, t in enumerate(tissues, 1):
+        if t["tissueSiteDetailId"] in ACCESSIBLE:
+            ax.axvspan(i - 0.5, i + 0.5, color=ACCESSIBLE[t["tissueSiteDetailId"]][1], alpha=0.25, lw=0, zorder=0)
     ax.set_ylabel("{} expression (TPM)".format(gene))
     ax.set_xlim(0.3, len(tissues) + 0.7)
     classic(ax)
     handles = [Patch(facecolor=c, edgecolor="black", linewidth=0.6, label=l) for l, c in ACCESSIBLE.values()]
-    ax.legend(handles=handles, frameon=False, fontsize=8, loc="upper right", title="Accessible tissues",
-              title_fontsize=8)
+    ax.legend(handles=handles, frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.42, 1.0),
+              title="Accessible tissues", title_fontsize=8, ncol=2)
     save(fig, os.path.join(args.outdir, "public_gtex_{}".format(gene)))
     return {t["tissueSiteDetailId"]: (float(np.median(t["data"])), len(t["data"])) for t in tissues}
 

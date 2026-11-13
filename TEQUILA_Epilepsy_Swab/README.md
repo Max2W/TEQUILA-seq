@@ -21,8 +21,9 @@ Data: `/mnt/isilon/lin_lab_share/Feng/TEQUILA_Epilepsy_Buccal_Swab_Pilot`, flowc
 
 ## Genes
 
-The probe panel is two genes, STXBP1 and SYNGAP1, listed in `target_genes.txt`. Every step reads
-that file.
+The probe panel is the 634-gene Epilepsy & NDD panel (`panel_genes.txt`, from Epilepsy_NDD634.xlsx). The genes of
+interest are STXBP1 and SYNGAP1, listed in `target_genes.txt`; every step reads that file. The panel list is
+used for the on-target rate (step 11).
 
 ## Where things are on the HPC
 
@@ -208,6 +209,22 @@ When the full path has run (`07_qc_full.sh`), step 10 also applies the gene read
 
 To add this pilot's RIN values to that figure and slide, put a `rin.tsv` (columns `sample_id`, `RIN`) in this folder
 and run step 10 again.
+
+### Step 8. Expression QC of the full run (panel on-target rate, PCA, correlation)
+
+`11_expression_qc.sh` reads every read of the genome-wide BAMs (`qc/bam/`, step 07). It runs as a job:
+1. `scripts/gene_counts.py` counts reads per gene (assigned by alignment midpoint) and the on-target rate on the
+   634 panel genes. It writes `qc/expression/gene_counts.tsv` and `panel_on_target.tsv`, and lists any panel symbols
+   missing from the GTF in `panel_genes_missing.txt`.
+2. `scripts/expression_qc.py` draws the panel on-target rate and where the reads go, PCA (all genes and panel
+   genes), sample correlation, and panel genes Zymo vs Genotek per donor, in `results/figures/expression_qc/`.
+
+Run step 10 again afterwards to add these slides to the deck.
+
+```bash
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+bash 11_expression_qc.sh
+```
 
 ### Folder layout on scratch
 

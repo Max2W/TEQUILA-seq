@@ -43,7 +43,7 @@ from coverage_plot import bin_mean, coverage  # noqa: E402
 from figure_style import IntronShrink, canonical_model, ordered, plt, read_sheet, save  # noqa: E402
 from isoform_abundance_plot import gene_isoforms  # noqa: E402
 from isoform_report import read_gtf_exons, strip_version  # noqa: E402
-from matplotlib.patches import FancyArrow, PathPatch, Rectangle  # noqa: E402
+from matplotlib.patches import ConnectionPatch, FancyArrow, PathPatch, Rectangle  # noqa: E402
 from matplotlib.path import Path as MPath  # noqa: E402
 from matplotlib.ticker import MaxNLocator  # noqa: E402
 
@@ -70,6 +70,7 @@ def parse_args():
     p.add_argument("--bam-pattern", required=True, help="gene-filtered BAMs, path with {gene} and {sample}")
     p.add_argument("--isoforms", action="append", default=[],
                    help="GENE:METHOD:matrix:isoform_gtf (repeat per gene); the isoform figures use it")
+    p.add_argument("--gene-reads", help="gene read table (results/figures/read_filter.tsv): reads per gene and sample")
     p.add_argument("--max-events", type=int, default=3)
     p.add_argument("--outdir", required=True)
     return p.parse_args()
@@ -105,6 +106,33 @@ def reads_figure(args, sheet, total):
     ax.set_xlim(-0.6, len(samples) - 0.4)
     ax.set_ylabel("Number of sequencing reads\n(per million)")
     save(fig, os.path.join(args.outdir, "reads_per_sample"))
+
+
+def gene_reads_figure(args, sheet, genes):
+    """reads of each target gene per sample, the two kits side by side."""
+    reads = {}
+    with open(args.gene_reads) as fh:
+        for r in csv.DictReader(fh, delimiter="\t"):
+            reads[(r["gene"], r["sample_id"])] = int(r["kept"])
+    conds = ordered(r["condition"] for r in sheet)
+    order = [r["sample_id"] for c in conds for r in sheet if r["condition"] == c]
+    colors = {c: k for c, k in zip(conds, ["#3188BD", "#EC7B02", "#57B45B", "#C9A0DC"])}
+    cond_of = {r["sample_id"]: r["condition"] for r in sheet}
+    fig, axes = plt.subplots(1, len(genes), figsize=(4.4 * len(genes), 3.3), squeeze=False)
+    fig.subplots_adjust(left=0.08, right=0.95, top=0.88, bottom=0.24, wspace=0.3)
+    for ax, g in zip(axes[0], genes):
+        v = [reads.get((g, s), 0) for s in order]
+        ax.bar(np.arange(len(order)), v, width=0.8, color=[colors[cond_of[s]] for s in order])
+        for i, n in enumerate(v):
+            ax.text(i, n, "{:,}".format(n), ha="center", va="bottom", fontsize=7)
+        rotated_labels(ax, [label(s) for s in order])
+        ax.set_ylabel("Reads")
+        ax.set_title(g, fontstyle="italic", fontsize=11)
+        ax.set_ylim(0, max(v + [1]) * 1.12)
+        classic(ax)
+    axes[0][-1].legend([Rectangle((0, 0), 1, 1, color=colors[c]) for c in conds], conds, frameon=False, fontsize=9,
+                       loc="upper right")
+    save(fig, os.path.join(args.outdir, "gene_reads"))
 
 
 # ------------------------------------------------------------------------------------------- ORF and categories
@@ -421,7 +449,8 @@ def event_id(gene, ev, chrom):
     return "{}_{}_{}:{}-{}".format(gene, kind, chrom, a, b)
 
 
-def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chrom, strand, out_path, kit_colors):
+def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chrom, strand, out_path, kit_colors,
+                    canon_exons):
     samples_all = [r["sample_id"] for r in sheet]
     meta = {r["sample_id"]: r for r in sheet}
     up = (max(ev["up"][0], ev["up"][1] - 249), ev["up"][1])
@@ -436,6 +465,7 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
             seg.append((b + 1, e))
         elif b == e and a > s:
             seg.append((s, a - 1))
+    alt_seg = [x for x in seg if x not in (up, down)]  # the event's own exon or exon extension, drawn in red
     seg = sorted(seg)
     lo, hi = up[0], down[1]
     shrink = IntronShrink(seg, intron_fraction=0.45)
@@ -450,9 +480,9 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
         panels += good or [s for s in by_kit[c] if sum(levels[s]) > 0][:1]
     psi = {s: (levels[s][0] / sum(levels[s]) * 100 if sum(levels[s]) >= MIN_DENOM else None) for s in samples_all}
 
-    W, H = 12.3, 5.2
+    W, H = 12.3, 5.8
     fig = plt.figure(figsize=(W, H))
-    ph = (H - 1.25) / max(len(panels), 1)
+    ph = (H - 1.85) / max(len(panels), 1)
     pos = np.arange(lo, hi + 1)
     xg = shrink(pos + 0.5)
     for i, s in enumerate(panels):
@@ -485,17 +515,39 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
         ax.spines["left"].set_bounds(0, ymax)
         ax.set_xticks([])
         ax.text(1.0, 1.0, label(s), transform=ax.transAxes, ha="right", va="top", fontsize=9)
-    # model: canonical exons in black, red arrow at the event
-    axm = fig.add_axes([0.85 / W, 0.35 / H, 4.6 / W, 0.55 / H])
+    # zoomed model: canonical exons in black, the event's exon (or exon extension) in red, red arrow at the event
+    axm = fig.add_axes([0.85 / W, 0.95 / H, 4.6 / W, 0.75 / H])
     axm.set_xlim(-0.01, 1.01)
     axm.set_ylim(-1, 1)
     axm.axis("off")
     axm.plot([shrink(up[0]), shrink(down[1] + 1)], [0.45, 0.45], color="black", linewidth=0.8)
     for s_, e_ in (up, down):
         axm.add_patch(Rectangle((shrink(s_), 0.2), shrink(e_ + 1) - shrink(s_), 0.5, color="black"))
+    for s_, e_ in alt_seg:
+        axm.add_patch(Rectangle((shrink(s_), 0.2), shrink(e_ + 1) - shrink(s_), 0.5, facecolor="#C00000",
+                                edgecolor="#C00000"))
     xa = float(shrink(ev["site"]))
     axm.add_patch(FancyArrow(xa, -1.0, 0, 0.85, width=0.012, head_width=0.035, head_length=0.4,
                              length_includes_head=True, color="#C00000", transform=axm.transData))
+    # overview: the whole canonical transcript with the event, introns shortened; dashed box = the zoomed region
+    full = IntronShrink(list(canon_exons) + alt_seg, intron_fraction=0.5)
+    axo = fig.add_axes([0.85 / W, 0.3 / H, 4.6 / W, 0.3 / H])
+    axo.set_xlim(-0.01, 1.01)
+    axo.set_ylim(-1, 1)
+    axo.axis("off")
+    axo.plot([full(canon_exons[0][0]), full(canon_exons[-1][1] + 1)], [0, 0], color="black", linewidth=0.6)
+    for s_, e_ in canon_exons:
+        axo.add_patch(Rectangle((full(s_), -0.45), max(full(e_ + 1) - full(s_), 0.002), 0.9, color="black"))
+    for s_, e_ in alt_seg:
+        axo.add_patch(Rectangle((full(s_), -0.45), max(full(e_ + 1) - full(s_), 0.003), 0.9, color="#C00000"))
+    z0, z1 = float(full(up[0])), float(full(down[1] + 1))
+    axo.add_patch(Rectangle((z0 - 0.004, -0.85), z1 - z0 + 0.008, 1.7, fill=False, edgecolor="#C00000",
+                            linestyle="--", linewidth=0.8))
+    for xo, xm in ((z0 - 0.004, -0.01), (z1 + 0.004, 1.01)):
+        fig.add_artist(ConnectionPatch((xo, 0.85), (xm, -1.0), "data", "data", axesA=axo, axesB=axm,
+                                       color="#C00000", linewidth=0.6, linestyle="--"))
+    axo.text(0, -1.25, "{} canonical transcript with the event in red (introns shortened)".format(gene),
+             fontsize=7, color="#444444", transform=axo.transData, va="top")
     # bar: level per sample, sorted
     have = sorted([s for s in samples_all if psi[s] is not None], key=lambda s: -psi[s])
     low = [s for s in samples_all if psi[s] is None]
@@ -540,6 +592,8 @@ def main():
     if missing:
         sys.exit("no read count for {} in {}".format(", ".join(missing), args.read_counts))
     reads_figure(args, sheet, total)
+    if args.gene_reads and os.path.exists(args.gene_reads):
+        gene_reads_figure(args, sheet, args.genes.split(","))
     fasta = pysam.FastaFile(args.fasta)
     specs = {}
     for item in args.isoforms:
@@ -606,7 +660,7 @@ def main():
                         cov_by_sample[s], cov_by_sample[s + "_lo"] = a, lo
                 name = "{}_event{}".format(gene, k)
                 sashimi_and_bar(gene, ev, lv, sheet, cov_by_sample, junc_by_sample, chrom, strand,
-                                os.path.join(args.outdir, name), KIT_SASHIMI)
+                                os.path.join(args.outdir, name), KIT_SASHIMI, canon["exons"])
                 fh.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(k, ev["id"], ev["type"], ev["annotated"], alt_pool,
                                                                den_pool, name))
         print("{}: {} splicing events found, {} with >= {} pooled reads, {} drawn".format(
