@@ -1,5 +1,47 @@
 # TEQUILA-seq: epilepsy genes in plucked hair-follicle RNA (pilot)
 
+> **Status (2026-11-13): evaluated, not pursued.** This pilot was designed and the analysis folder prepared, but
+> it was dropped before any sample was collected. Plucking 25-30 scalp hairs with tweezers is not acceptable as a
+> collection procedure for our donors, and it is impractical in the patients we care about most (children under 3,
+> whose scalp hair is fine and sparse). Nothing in this folder has been run. It is kept
+> as a record of the idea and as working code in case a less invasive follicle collection is ever considered.
+
+## Why hair follicles were considered
+
+- **The buccal-swab pilot** (branch `Epilepsy_Swab`) detected STXBP1 and SYNGAP1 in all 8 swabs, but the RNA was
+  degraded (low RIN, as published for buccal swabs). There were almost no full-length reads (none for SYNGAP1),
+  too few for isoform or splicing analysis.
+- **Published evidence** (Martorella et al., BMC Genomics 2023, PMC10729488) compared accessible tissues from the same
+  people. Plucked hair follicles had a mean RIN of 8.9, against 2.5 for buccal swabs and 2.6 for saliva. They
+  expressed 80% of OMIM genes, against 70% for urine and 55% for buccal swabs. Ten follicles gave a median of
+  1,444 ng RNA (IQR 606-2,531).
+- **Expression of panel genes:** in GTEx, skin (the closest tissue to the follicle) expresses 59-60% of the 634
+  panel genes at 10 TPM or more. That is close to brain cortex (63%) and much more than whole blood (30%).
+
+## Work done before the decision
+
+- **Design:** the same donors A-D as the swab pilot. Each donor's follicles go into two storage conditions, frozen
+  immediately vs RNAlater at room temperature for 2-3 days (a mailed sample), plus a third tube for DNA. The
+  questions, sample sheet and protocol are below.
+- **Analysis folder:** `TEQUILA_Epilepsy_Hair/` is the swab pipeline (steps 00-11 and the slide deck) with these
+  changes:
+  - wording changed to hair follicles;
+  - public-data slides compare with the published hair-follicle RIN and with GTEx skin;
+  - `config.sh` and `samples.tsv` still read `SET_ME` for the run folder and barcodes, and step 01 stops until
+    they are set.
+- **New script:** `scripts/compare_specimens.py` draws a per-donor comparison of two specimen types from the same
+  donors. It reads two finished project folders and plots RIN, panel on-target rate, gene reads per million,
+  median transcript coverage, full-length reads and patient variants with 20 reads or more. It is not specific
+  to hair: it can compare the swab pilot with any next specimen whose sample IDs are `<condition>_<donor>`.
+
+## If this is ever revived
+
+- **Collection:** a less invasive collection would need to be tested first, for example fewer hairs (5-10) or hairs
+  shed naturally with the root attached. The RNA yield would then need to be confirmed.
+- **Run setup:** set `RAW_DIR`, `FLOWCELLS` and the barcodes, then run steps 00-11 as described below.
+
+---
+
 The lab-member donors A-D of the buccal-swab pilot (branch `Epilepsy_Swab`) give plucked scalp hair follicles. Each
 donor's follicles are split between two storage conditions: frozen immediately (-80 C), or kept in RNAlater at room
 temperature for 2-3 days, which is what a mailed clinical sample would go through. A third tube per donor is kept for
