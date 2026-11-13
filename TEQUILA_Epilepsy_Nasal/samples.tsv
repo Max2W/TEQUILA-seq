@@ -1,0 +1,9 @@
+sample_id	no	donor	species	cell_type	treatment	condition	barcode
+Zymo_A	1	A	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, left) in DNA/RNA Shield + Zymo Quick-RNA Microprep	Zymo	SET_ME
+Zymo_B	2	B	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, left) in DNA/RNA Shield + Zymo Quick-RNA Microprep	Zymo	SET_ME
+Zymo_C	3	C	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, left) in DNA/RNA Shield + Zymo Quick-RNA Microprep	Zymo	SET_ME
+Zymo_D	4	D	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, left) in DNA/RNA Shield + Zymo Quick-RNA Microprep	Zymo	SET_ME
+Genotek_A	5	A	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, right) in Genotek OR-100 stabiliser + Qiagen miRNeasy	Genotek	SET_ME
+Genotek_B	6	B	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, right) in Genotek OR-100 stabiliser + Qiagen miRNeasy	Genotek	SET_ME
+Genotek_C	7	C	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, right) in Genotek OR-100 stabiliser + Qiagen miRNeasy	Genotek	SET_ME
+Genotek_D	8	D	Human	Nasal_swab	Zymo R1107 flocked swab (inferior turbinate, right) in Genotek OR-100 stabiliser + Qiagen miRNeasy	Genotek	SET_ME

@@ -17,6 +17,12 @@ if submit_self epi_fastq 8 8G 12:00:00 "${_D}/01_prepare_fastq.sh" "$@"; then
   exit 0
 fi
 
+if [[ "${RAW_DIR}" == *SET_ME* || "${FLOWCELLS[*]}" == *SET_ME* ]] || grep -q SET_ME "${SAMPLE_SHEET}"; then
+  echo "The run folder (RAW_DIR, FLOWCELLS in config.sh) or the barcodes (samples.tsv) are not set yet." >&2
+  echo "Send the run folder path and the barcode of each sample, and they will be filled in." >&2
+  exit 1
+fi
+
 THREADS="${SLURM_CPUS_PER_TASK:-4}"
 mkdir -p "${FASTQ_DIR}" "${QC_DIR}"
 

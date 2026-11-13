@@ -1,11 +1,11 @@
 #!/bin/bash
-# Slide deck of the swab pilot, in the layout of the TEQUILA-seq progress decks. Run after 09_gene_figures.sh.
+# Slide deck of the nasal pilot, in the layout of the TEQUILA-seq progress decks. Run after 09_gene_figures.sh.
 #   1. scripts/deck_figures.py (gene-filtered BAMs of step 09, isoforms of step 04/05):
 #      reads per sample; per gene the canonical gene model, gene CPM + isoform fractions with isoform structures,
 #      the same by ORF category (canonical / protein coding / PTC / incomplete), and sashimi + inclusion-level
 #      figures for the best-supported splicing events -> ${RESULTS_DIR}/figures/deck/
 #   2. scripts/make_slides.py: all figures of steps 09 and 10 in one .pptx, with titles and bullets computed from
-#      the result tables -> ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx
+#      the result tables -> ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Nasal_pilot.pptx
 #
 # Light work (minutes): LOCAL=1 runs it here instead of submitting it.
 # Usage: bash 10_slides.sh
@@ -133,6 +133,13 @@ if [[ -s "${QC_DIR}/expression/gene_counts.tsv" ]]; then
   extra_args+=(--sex-figures "${FIG}/sex_check")
 fi
 
+# nasal vs the earlier buccal-swab pilot of the same donors (read only)
+if [[ -d "${SWAB_PROJECT_DIR}/results" ]]; then
+  python "${ANALYSIS_DIR}/scripts/compare_specimens.py" --project "Nasal=${PROJECT_DIR}" \
+    --project "Buccal=${SWAB_PROJECT_DIR}" --genes "${genes_csv}" --outdir "${FIG}/comparison" \
+    && extra_args+=(--comparison-figures "${FIG}/comparison")
+fi
+
 # coverage of known patient variants: the variant table holds patient information and is kept on scratch, never in
 # the repository (${PROJECT_DIR}/variants/patient_variants.tsv)
 var_args=()
@@ -158,5 +165,5 @@ mkdir -p "${RESULTS_DIR}/slides"
 python "${ANALYSIS_DIR}/scripts/make_slides.py" --genes "${genes_csv}" --figures-dir "${FIG}" \
   --sample-sheet "${SAMPLE_SHEET}" --read-counts "${QC_DIR}/fastq_read_counts.tsv" --run-label "${run_label}" \
   --public-figures "${FIG}/public" --nasal-figures "${FIG}/nasal" "${rin_slide[@]}" "${full_args[@]}" "${var_args[@]}" "${extra_args[@]}" \
-  --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
-echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Swab_pilot.pptx"
+  --out "${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Nasal_pilot.pptx"
+echo "[slides] done: ${RESULTS_DIR}/slides/TEQUILA_Epilepsy_Nasal_pilot.pptx"

@@ -1,23 +1,110 @@
-# TEQUILA-seq: epilepsy genes in buccal swab RNA (pilot)
+# TEQUILA-seq: epilepsy genes in nasal swab RNA (pilot)
 
-Lab-member donors A-D each gave buccal swabs, collected with two swab / RNA-extraction kits, and the
-RNA was captured with TEQUILA-seq probes for epilepsy genes, including STXBP1 and SYNGAP1. Swab RNA
-is degraded (low RIN), but RIN does not say how much usable RNA remains for these genes. This
-analysis asks:
+**Status: planned.** Samples are not collected yet. The run folder and barcodes read `SET_ME` in `config.sh` and
+`samples.tsv`, and step 01 stops with a message until they are set.
 
-1. **Detection.** Are the target genes detected in each sample, and at what depth?
-2. **Fragmentation.** How much of each transcript do the reads cover? Are any reads full length?
-3. **Isoforms.** Which transcripts are recovered, and do the two kits differ (paired by donor)?
+The buccal-swab pilot (branch `Epilepsy_Swab`) detected STXBP1 and SYNGAP1 in every swab, but the RNA was too
+fragmented for full-length isoforms. The literature points to the nose as the better accessible tissue:
+- **Integrity:** RNA from a brush on the inferior turbinate is intact (median RIN 8.9 in Lai 2015), because it
+  comes from living airway epithelium, not from shed squamous cells.
+- **Expression:** public nasal brushings of 695 children and young people express both genes in every sample
+  (GEO GSE152004; median 37 CPM for STXBP1 and 71 CPM for SYNGAP1). Figures: `scripts/nasal_literature_figures.py`,
+  with numbers in `public_data/`.
 
-Data: `/mnt/isilon/lin_lab_share/Feng/TEQUILA_Epilepsy_Buccal_Swab_Pilot`, flowcell 3A
-(`20261104_1300_3A_PBM76834_dd62c4a3`), barcodes 17-24 (SQK-NBD114.24).
+This pilot uses the swab kits already in the lab: the Zymo R1107 kit contains a flocked swab, and Zymo lists the
+nose as a sample site. Questions:
+
+1. **Integrity.** Is nasal swab RNA more intact than the same donor's buccal swab RNA (RIN, transcript coverage,
+   full-length reads)?
+2. **Detection.** Are the target genes and the panel detected, at what depth, and how many patient variants are
+   covered?
+3. **Stabiliser.** Does the Genotek stabiliser do as well as Zymo DNA/RNA Shield for nasal swabs?
 
 ## Samples
 
-| barcode | sample_id | donor | swab kit | RNA extraction | condition |
+Same donors A-D as the buccal pilot, one session each, one nostril per sample:
+
+| sample_id | donor | swab and site | stabiliser | RNA extraction | condition |
 |---|---|---|---|---|---|
-| NB17-20 | Zymo_A ... Zymo_D | A-D | Zymo R1107-1 | Zymo Quick-RNA Microprep | Zymo |
-| NB21-24 | Genotek_A ... Genotek_D | A-D | Genotek OR-100 | Qiagen miRNeasy | Genotek |
+| Zymo_A ... Zymo_D | A-D | Zymo R1107 flocked swab, inferior turbinate, left | Zymo DNA/RNA Shield (1 mL, kit tube) | Zymo Quick-RNA Microprep | Zymo |
+| Genotek_A ... Genotek_D | A-D | Zymo R1107 flocked swab, inferior turbinate, right | Genotek OR-100 tube (sponge not used) | Qiagen miRNeasy | Genotek |
+
+Sample IDs match the buccal pilot (`<condition>_<donor>`). Step 10 therefore draws each donor's nasal and buccal
+samples side by side (`scripts/compare_specimens.py`, read only on `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab`).
+
+**Check the Genotek arm on the bench first,** with one spare kit:
+- The OR-100 sponge is for the mouth and is not for the nose.
+- Break a Zymo swab at its breakpoint into the Genotek tube, cut the sponge off the Genotek cap, and close it.
+- If the swab does not fit or the cap does not seal, use a second Zymo kit for the right nostril instead, and set
+  `condition` to `Zymo2`.
+
+## Collection (adult lab donors)
+
+Each step names its source. Sources are in `public_data/nasal_literature.tsv` and `nasal_pediatric.tsv`.
+
+1. **Do not sample** after a cold or other respiratory infection in the last 2 weeks (Chu 2016 postponed sampling
+   by about 2 weeks). Also do not sample anyone with nosebleeds, a bleeding disorder or anticoagulants, or nasal
+   surgery or polyps.
+2. **Prepare.** The donor blows their nose gently (Brewington 2018). They sit with the head slightly back, under
+   good light.
+3. **Left nostril, Zymo tube.**
+   - Insert the flocked swab along the floor of the nostril, parallel to the palate, towards the inferior
+     turbinate (the lower fold on the side wall). Stop at gentle resistance and do not force it.
+   - Press the tip against the turbinate and rotate it for 3-5 s, moving it slightly in and out 4-5 times (Chu
+     2016; Brewington 2018).
+4. **Store at once.** Put the swab straight into its tube, break it at the breakpoint, close the cap and invert
+   5 times.
+5. **Right nostril, Genotek tube (or the second Zymo kit).** Take a new swab the same way. Do not sample the same
+   nostril twice (Ulm 2016).
+6. **Record:**
+   - time of collection and side;
+   - discomfort from 0 to 10 (the scale of Lai 2015, where turbinate brushing scored a median of 3.5);
+   - blood on the swab, and any nosebleed;
+   - watch the donor for 5 minutes (Chu 2016).
+7. **Storage.** Keep the Zymo tubes at room temperature (Zymo states RNA stability for at least 1 month). Keep the
+   Genotek tubes at room temperature and not at 4 C (Genotek). Extract both on the same day, within a week.
+
+## RNA extraction and QC
+
+- **Zymo tube:**
+  - Use the whole 1 mL of DNA/RNA Shield. The nasal cell pellet is small and the Shield dilutes it.
+  - Optionally digest with Proteinase K in the Shield first. Then add 1 volume of RNA Lysis Buffer and load the
+    Quick-RNA Microprep column in several passes.
+  - Do the on-column DNase I step, and elute in about 15 uL.
+- **Genotek tube:** use the same Qiagen miRNeasy procedure as for the buccal Genotek swabs, so that only the
+  sampling site changes.
+- **QC:**
+  - RIN on a high-sensitivity chip, and yield by Qubit RNA HS.
+  - Write the RIN values to `/scr1/users/wangf3/TEQUILA_Epilepsy_Nasal/rin.tsv` (columns `sample_id`, `RIN`).
+    Sample data stay on scratch, not in this repository.
+- **Library:** use the same TEQUILA-seq panel, protocol and input as the buccal pilot, with 8 barcodes on one flow
+  cell.
+
+## Bench add-on: is buccal RNA degraded inside cells or outside them? (no sequencing)
+
+Sequencing cannot tell cell-free RNA from RNA inside cells. Take one extra Zymo buccal swab per donor and split it:
+1. Vortex the tube, press the swab against the wall and remove it.
+2. Spin at low speed to pellet the cells (for example 500 x g, 5 min). Move the supernatant to a new tube.
+3. Clear the supernatant at high speed (for example 16,000 x g, 10 min).
+4. Extract the cell pellet (resuspended in Shield) and the cleared supernatant separately, and measure RIN and yield
+   of each.
+
+If most of the RNA, and the low RIN, sit in the pellet, the RNA is degraded inside the shed cells. If the
+supernatant holds a large share, extracellular RNA matters. The spin speeds are a suggestion, not a published
+protocol.
+
+## Decision rules (set before the data)
+
+The nasal swab is taken forward to children when, in at least 3 of 4 donors, it beats the same donor's buccal swab
+on all of these:
+- STXBP1 median transcript coverage per read and full-length STXBP1 reads per million are higher (step 08 /
+  `compare_specimens.py`);
+- RIN is at least 2 units higher;
+- STXBP1 and SYNGAP1 gene reads per million are not more than 2-fold lower;
+- discomfort is 3 or less, and no nosebleed needs treatment.
+
+If integrity does not improve, the next test is a cytology brush on the inferior turbinate (Lai 2015: RIN 8.9 vs 1.1
+for a swab at the front of the nose). It needs brushes bought.
 
 ## Genes
 
@@ -27,8 +114,8 @@ used for the on-target rate (step 11).
 
 ## Where things are on the HPC
 
-- **Code** (this repository) is in home: `/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq`.
-- **Outputs, logs and working files** are on scratch: `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab`.
+- **Code** (this repository) is in home: `/home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq`.
+- **Outputs, logs and working files** are on scratch: `/scr1/users/wangf3/TEQUILA_Epilepsy_Nasal`.
 - **Reference data** is on scratch: `/scr1/users/wangf3/TEQUILA_references`. It holds GRCh38 +
   GENCODE v49 and the minimap2 genome index.
 - **Software** stays in home, in `/home/wangf3/feng/projects/TEQUILA_EIF2AK3`: the conda
@@ -72,15 +159,15 @@ Paste each block on the HPC login node, one at a time, in this order.
 ### Step 1. Get the code (once)
 
 ```bash
-mkdir -p /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab
-git clone -b Epilepsy_Swab https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
+mkdir -p /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal
+git clone -b Epilepsy_Nasal https://github.com/Max2W/TEQUILA-seq.git TEQUILA-seq
 ```
 
 If it is already there, update it instead:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq
 git pull
 ```
 
@@ -89,14 +176,14 @@ git pull
 It should end with `=== SETUP COMPLETE ===`:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq/TEQUILA_Epilepsy_Nasal
 bash 00_setup.sh
 ```
 
 ### Step 3. Start both paths
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq/TEQUILA_Epilepsy_Nasal
 bash run_all.sh
 ```
 
@@ -113,14 +200,14 @@ sacct -u $USER -S today --format=JobID%10,JobName%28,State%14,ExitCode,Elapsed |
 If a job failed, the end of its error log names the failing line:
 
 ```bash
-cd /scr1/users/wangf3/TEQUILA_Epilepsy_Swab/logs
+cd /scr1/users/wangf3/TEQUILA_Epilepsy_Nasal/logs
 for f in $(ls -t *.err | head -3); do echo "=== $f"; tail -15 "$f"; done
 ```
 
 ### Step 5. Results
 
 ```bash
-cd /scr1/users/wangf3/TEQUILA_Epilepsy_Swab
+cd /scr1/users/wangf3/TEQUILA_Epilepsy_Nasal
 column -t qc/fastq_read_counts.tsv
 column -t fast/bait_align_stats.tsv
 cat results/fragmentation/fast/fragmentation_report.md
@@ -159,7 +246,7 @@ cat results/SYNGAP1/ESPRESSO_fast/SYNGAP1_ESPRESSO_fast_report.md
 The work is light, so it runs here on the login node in a few minutes:
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq/TEQUILA_Epilepsy_Nasal
 LOCAL=1 bash 09_gene_figures.sh
 ```
 
@@ -190,11 +277,11 @@ from the first available of ESPRESSO_fast, AMALGAM_full, AMALGAM_fast or ESPRESS
 `python-pptx` into the analysis environment.
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq/TEQUILA_Epilepsy_Nasal
 LOCAL=1 bash 10_slides.sh
 ```
 
-The deck is `results/slides/TEQUILA_Epilepsy_Swab_pilot.pptx`.
+The deck is `results/slides/TEQUILA_Epilepsy_Nasal_pilot.pptx`.
 
 The deck also has public-data slides from `scripts/public_data_figures.py`. Their inputs are committed in
 `public_data/`, so no internet is needed:
@@ -207,7 +294,7 @@ When the full path has run (`07_qc_full.sh`), step 10 also applies the gene read
 - the genes collecting the most reads;
 - how many gene reads the k-mer baiting of the fast path recovered.
 
-With `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/rin.tsv` (columns `sample_id`, `RIN`; sample data, kept on scratch),
+With `/scr1/users/wangf3/TEQUILA_Epilepsy_Nasal/rin.tsv` (columns `sample_id`, `RIN`; sample data, kept on scratch),
 step 10 adds:
 - the pilot's RIN to the public-data RIN figure and slide;
 - RIN against the read-level integrity of the target genes (`scripts/rin_figures.py`).
@@ -217,7 +304,7 @@ Y-linked genes; the two swabs of a donor must agree). Its output stays with the 
 
 ### Patient variant coverage (step 10)
 
-If `/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/variants/patient_variants.tsv` exists, step 10 runs
+If `/scr1/users/wangf3/TEQUILA_Epilepsy_Nasal/variants/patient_variants.tsv` exists, step 10 runs
 `scripts/variant_coverage.py`, which counts how many gene reads per swab cover each known patient variant of the target
 genes. The file needs columns gene, nucleotide (c.), protein and pathogenicity, separated by tabs or `|`.
 - c. positions are read on the MANE Select transcript, and the reference base is checked against the genome.
@@ -238,7 +325,7 @@ information: keep it on scratch, never in this repository.
 Run step 10 again afterwards to add these slides to the deck.
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq/TEQUILA_Epilepsy_Nasal
 bash 11_expression_qc.sh
 ```
 
@@ -263,20 +350,20 @@ The same step runs unchanged on a nasal-brushing pilot, so the two specimens can
 Run step 10 again afterwards to add these slides to the deck.
 
 ```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
+cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq/TEQUILA_Epilepsy_Nasal
 bash 12_rna_composition.sh
 ```
 
 When it finishes, paste back the output of:
 
 ```bash
-column -t /scr1/users/wangf3/TEQUILA_Epilepsy_Swab/qc/composition/transcript_span.tsv
+column -t /scr1/users/wangf3/TEQUILA_Epilepsy_Nasal/qc/composition/transcript_span.tsv
 ```
 
 ### Folder layout on scratch
 
 ```
-/scr1/users/wangf3/TEQUILA_Epilepsy_Swab/
+/scr1/users/wangf3/TEQUILA_Epilepsy_Nasal/
   bin/pipeline_env      runs a command in the TEQUILA-seq conda env
   fire_index/           FIRE index of STXBP1 + SYNGAP1
   fastq/                merged fastq.gz per sample (needed by the full path)
@@ -289,7 +376,7 @@ column -t /scr1/users/wangf3/TEQUILA_Epilepsy_Swab/qc/composition/transcript_spa
     <GENE>/<METHOD>/                isoform reports (ESPRESSO / AMALGAM, fast / full)
     figures/                        figure1/2 (pdf, png, data), kit_comparison.tsv, read_filter.tsv
     figures/deck/                   progress-deck style figures and tables (step 10)
-    slides/                         TEQUILA_Epilepsy_Swab_pilot.pptx (step 10)
+    slides/                         TEQUILA_Epilepsy_Nasal_pilot.pptx (step 10)
     figures/<GENE>/                 coverage and isoform figures (pdf, png, data tables) and igv/ pages per sample
   logs/                 one .out/.err per SLURM job (job names start with epi_)
 /scr1/users/wangf3/TEQUILA_references/   GRCh38, GENCODE v49, minimap2 index

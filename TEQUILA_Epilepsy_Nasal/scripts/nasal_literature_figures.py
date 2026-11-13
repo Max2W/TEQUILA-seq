@@ -37,7 +37,8 @@ def parse_args():
     p.add_argument("--table", required=True, help="public_data/nasal_literature.tsv")
     p.add_argument("--pediatric", help="public_data/nasal_pediatric.tsv (optional)")
     p.add_argument("--expression", help="public_data/nasal_gse152004_summary.tsv (optional)")
-    p.add_argument("--our-rin", help="TSV with sample_id, RIN of this pilot's buccal swabs (optional)")
+    p.add_argument("--our-rin", help="TSV with sample_id, RIN of this pilot's samples (optional)")
+    p.add_argument("--our-label", default="Nasal swabs, this pilot", help="label of --our-rin in the RIN figure")
     p.add_argument("--outdir", required=True)
     return p.parse_args()
 
@@ -113,7 +114,7 @@ def main():
     if args.our_rin and os.path.exists(args.our_rin):
         rin = [float(r["RIN"]) for r in read_tsv(args.our_rin) if r.get("RIN")]
         if rin:
-            extra = ("Buccal swabs, this pilot", "pilot", float(np.mean(rin)), min(rin), max(rin), "range",
+            extra = (args.our_label, "pilot", float(np.mean(rin)), min(rin), max(rin), "range",
                      "this pilot, n = {}".format(len(rin)))
     fig, ax, items = dot_chart(rows, "RIN (RNA integrity number; 10 = intact)", None, extra=extra,
                                ref=(7, "RIN 7"))

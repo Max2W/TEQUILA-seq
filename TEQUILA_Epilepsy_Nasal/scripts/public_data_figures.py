@@ -83,7 +83,7 @@ def martorella(args):
     fig, axes = plt.subplots(1, 3, figsize=(12.3, 3.6), gridspec_kw={"width_ratios": [1.2, 1, 1]})
     fig.subplots_adjust(left=0.06, right=0.99, top=0.88, bottom=0.3, wspace=0.42)
     ax = axes[0]
-    names = [n for n, _ in rin] + (["This pilot (buccal swabs)"] if ours else [])
+    names = [n for n, _ in rin] + (["This pilot (nasal swabs)"] if ours else [])
     vals = [v for _, v in rin] + ([float(np.mean(ours))] if ours else [])
     cols = ["#BEBEBE" if "Hair" in n else SLATE for n in names[:len(rin)]] + (["#3A8DC4"] if ours else [])
     ax.bar(range(len(vals)), vals, width=0.7, color=cols)

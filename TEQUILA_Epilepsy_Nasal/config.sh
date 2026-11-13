@@ -1,15 +1,17 @@
 #!/bin/bash
-# Central settings for the epilepsy buccal-swab TEQUILA-seq pilot.
+# Central settings for the epilepsy nasal-swab TEQUILA-seq pilot.
 # Every step script sources this file. Edit here, not in the step scripts.
 
 # ---------------------------------------------------------------------------
 # Locations on the HPC
 # ---------------------------------------------------------------------------
 # Code lives in home; data and outputs live on scratch (home is not for data).
-CODE_DIR="${CODE_DIR:-/home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq}"
+CODE_DIR="${CODE_DIR:-/home/wangf3/feng/projects/TEQUILA_Epilepsy_Nasal/TEQUILA-seq}"
 # all outputs, logs and working files of this project
-PROJECT_DIR="${PROJECT_DIR:-/scr1/users/wangf3/TEQUILA_Epilepsy_Swab}"
-ANALYSIS_DIR="${_TEQ_DIR:-${CODE_DIR}/TEQUILA_Epilepsy_Swab}"
+PROJECT_DIR="${PROJECT_DIR:-/scr1/users/wangf3/TEQUILA_Epilepsy_Nasal}"
+# the earlier buccal-swab pilot of the same donors, for the nasal vs buccal comparison (read only)
+SWAB_PROJECT_DIR="${SWAB_PROJECT_DIR:-/scr1/users/wangf3/TEQUILA_Epilepsy_Swab}"
+ANALYSIS_DIR="${_TEQ_DIR:-${CODE_DIR}/TEQUILA_Epilepsy_Nasal}"
 
 # Where outputs go
 PIPELINE_DIR="${PROJECT_DIR}/pipeline"      # Snakemake working dir (alignment, ESPRESSO)
@@ -38,12 +40,12 @@ CONDA_WRAPPER="${PROJECT_DIR}/bin/pipeline_env"
 # ---------------------------------------------------------------------------
 # Raw data (dorado/MinKNOW fastq_pass, demultiplexed by barcode)
 # ---------------------------------------------------------------------------
-RAW_DIR="${RAW_DIR:-/mnt/isilon/lin_lab_share/Feng/TEQUILA_Epilepsy_Buccal_Swab_Pilot}"
+RAW_DIR="${RAW_DIR:-SET_ME}"
 
-# The swab pilot was sequenced on one flowcell (3A); its samples are barcodes 17-24.
-# Each entry is "<short label>:<run folder inside RAW_DIR>".
+# The run folder(s) of the nasal pilot: "<short label>:<run folder inside RAW_DIR>".
+# SET_ME until the run exists; 01_prepare_fastq.sh stops with a message while it is.
 FLOWCELLS=(
-  "FC3A:20261104_1300_3A_PBM76834_dd62c4a3"
+  "SET_ME"
 )
 
 SAMPLE_SHEET="${ANALYSIS_DIR}/samples.tsv"
@@ -68,7 +70,7 @@ fi
 # genes reported under results/internal_control/<GENE>/ instead of results/<GENE>/
 CONTROL_GENES=()
 
-# Isoform report: the swab kits are compared, paired by donor, against this kit
+# Isoform report: the stabilisers are compared, paired by donor, against this one
 REFERENCE_CONDITION="Zymo"
 
 # ---------------------------------------------------------------------------

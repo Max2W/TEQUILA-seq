@@ -69,6 +69,7 @@ def parse_args():
     p.add_argument("--rin-figures", help="figures of scripts/rin_figures.py")
     p.add_argument("--sex-figures", help="figures of scripts/sex_check.py")
     p.add_argument("--composition-figures", help="figures of scripts/composition_figures.py (12_rna_composition.sh)")
+    p.add_argument("--comparison-figures", help="figures of scripts/compare_specimens.py")
     p.add_argument("--nasal-figures", help="figures of scripts/nasal_literature_figures.py (next specimen)")
     p.add_argument("--out", required=True)
     return p.parse_args()
@@ -218,24 +219,25 @@ def main():
     tf.word_wrap, tf.vertical_anchor = True, MSO_ANCHOR.MIDDLE
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.CENTER
-    D.runs(p, "Targeted long-read RNA sequencing of epilepsy genes in buccal swab RNA", 40, bold=True)
+    D.runs(p, "Targeted long-read RNA sequencing of epilepsy genes in nasal swab RNA", 40, bold=True)
     p = tf.add_paragraph()
     p.alignment = PP_ALIGN.CENTER
     p.space_before = Pt(18)
-    D.runs(p, "TEQUILA-seq pilot: {} in {} donors, {} swab kits".format(
+    D.runs(p, "TEQUILA-seq nasal pilot: {} in {} donors, {} stabilisers".format(
         " and ".join(genes), len({r["donor"] for r in sheet}), len(kits)), 20, color=GREY)
 
     # 2. study design
-    s = D.slide("Study design: the same donors sampled with two swab and RNA extraction kits")
-    rows = [["Sample", "Donor", "Swab + RNA extraction", "Barcode"]] + [
+    s = D.slide("Study design: nasal swabs of the buccal-swab donors, in two stabilisers")
+    rows = [["Sample", "Donor", "Swab, stabiliser + RNA extraction", "Barcode"]] + [
         [r["sample_id"].replace("_", " "), r["donor"], r["treatment"], r["barcode"].replace("barcode", "NB")]
         for r in sheet]
     D.table(s, rows, 0.5, 1.7, 7.4, [1.3, 0.8, 4.3, 1.0], size=12)
-    D.bullets(s, ["Questions for low-RIN swab RNA:",
+    D.bullets(s, ["Questions for nasal swab RNA:",
                   (1, "Are {} detected, and at what depth?".format(" and ".join(genes))),
                   (1, "How much of each transcript do the reads cover? Are any reads full length?"),
-                  (1, "Which isoforms and splicing events can be measured, and do the kits differ?"),
-                  "Kits compared within donor (paired, n = {})".format(len({r["donor"] for r in sheet}))],
+                  (1, "Is it more intact than the same donors' buccal swab RNA?"),
+                  (1, "Which isoforms and splicing events can be measured, and do the stabilisers differ?"),
+                  "Stabilisers and specimens compared within donor (paired, n = {})".format(len({r["donor"] for r in sheet}))],
               8.3, 1.7, 4.6, 4.5, size=16)
 
     if args.public_figures and os.path.isdir(args.public_figures):
@@ -244,12 +246,12 @@ def main():
     # 3. sequencing (reads per sample)
     path = os.path.join(deck_dir, "reads_per_sample.png")
     if os.path.exists(path):
-        s = D.slide("Targeted long-read RNA sequencing of {} in buccal swabs".format(" and ".join(genes)))
+        s = D.slide("Targeted long-read RNA sequencing of {} in nasal swabs".format(" and ".join(genes)))
         D.picture(s, path, 2.2, 1.45, 8.9, 3.85)
         per = [total[x] / 1e6 for x in samples]
         D.bullets(s, [
             "Prepared a multiplexed TEQUILA-seq library ({}-gene epilepsy and neurodevelopmental disorder probe "
-            "panel; genes of interest {}) from buccal swab RNA of {} donors collected with {} kits ({}), based on "
+            "panel; genes of interest {}) from nasal swab RNA of {} donors collected into {} stabilisers ({}), based on "
             "ONT sequencing kit SQK-NBD114.24".format(
                 panel_size(), " and ".join(genes), len({r["donor"] for r in sheet}), len(kits),
                 "; ".join("{}: {}".format(k, kit_text[k]) for k in kits)),
@@ -306,6 +308,7 @@ def main():
         items.append("Full length = the read reaches the first and the last exon of the canonical (MANE) transcript")
         D.bullets(s, items, 8.8, 1.8, 4.2, 4.8, size=15)
 
+    comparison_slide(D, args, genes)
     rin_slide(D, args, genes)
     if args.variant_figures and os.path.isdir(args.variant_figures):
         variant_slides(D, args, genes, samples)
@@ -512,7 +515,7 @@ def nasal_slides(D, args):
     nf = args.nasal_figures
     tab = read_tsv(os.path.join(nf, "nasal_literature_figures.tsv"))
     val = {(r["measure"], r["label"]): float(r["value"]) for r in tab if r["value"]}
-    D.divider("Next specimen: nasal epithelial brushing", "What the literature reports, against buccal swabs")
+    D.divider("Nasal epithelial sampling: what the literature reports", "Against buccal swabs, the specimen of the first pilot")
     p = os.path.join(nf, "nasal_expression.png")
     if os.path.exists(p):
         cpm = {r["label"]: float(r["value"]) for r in tab if r["measure"] == "nasal_cpm_median"}
@@ -539,7 +542,7 @@ def nasal_slides(D, args):
         D.bullets(s, ["The site matters more than the device: at the front of the nose (squamous lining) RIN is "
                       "low with a brush or a swab",
                       "A brush on the inferior turbinate, a few cm inside, reaches living airway epithelium",
-                      "Our buccal swabs sit with the published buccal and saliva values"], 8.9, 1.7, 4.2, 5.0,
+                      "This pilot's nasal swabs are drawn in black"], 8.9, 1.7, 4.2, 5.0,
                   size=15)
     p = os.path.join(nf, "nasal_cells.png")
     if os.path.exists(p):
@@ -588,6 +591,29 @@ def nasal_slides(D, args):
         D.note(s, "Outcomes differ between studies (bar colour). No study reports RIN by age; awake brushing at 1-5 "
                   "years is not reported (Fawcett 2023 brushed children under 5 under anaesthesia). Sources: "
                   "public_data/nasal_pediatric.tsv", size=11)
+
+
+def comparison_slide(D, args, genes):
+    cf = args.comparison_figures
+    p = os.path.join(cf, "specimen_comparison.png") if cf else ""
+    if not p or not os.path.exists(p):
+        return
+    rows = read_tsv(os.path.join(cf, "specimen_comparison.tsv"))
+    measure = "{} median transcript coverage (%)".format(genes[0])
+    vals = defaultdict(list)
+    for r in rows:
+        if r["measure"] == measure:
+            vals[r["specimen"]].append(float(r["value"]))
+    med = lambda v: sorted(v)[len(v) // 2]  # noqa: E731
+    if "Nasal" in vals and "Buccal" in vals:
+        title = "Nasal vs buccal swabs in the same donors: the median {} read covers {:.0f}% vs {:.0f}% of the " \
+                "transcript".format(genes[0], med(vals["Nasal"]), med(vals["Buccal"]))
+    else:
+        title = "Nasal vs buccal swabs in the same donors"
+    s = D.slide(title, size=26)
+    D.picture(s, p, 0.3, 1.4, SW - 0.6, 5.4)
+    D.note(s, "Each line joins one donor's samples; nasal stabilisers on the left, buccal swab kits on the right",
+           size=11)
 
 
 def rin_slide(D, args, genes):
@@ -732,9 +758,9 @@ def public_slides(D, args, genes, samples):
     rins = []
     if args.rin and os.path.exists(args.rin):
         rins = [float(r["RIN"]) for r in read_tsv(args.rin) if r.get("RIN") and r["sample_id"] in samples]
-    ours = ("This pilot: RIN {} across {} swabs, mean {:.1f}; all well below RIN 7, like the published buccal "
-            "swabs (mean 2.5)".format(fmt_range(rins, 1), len(rins), sum(rins) / len(rins)) if rins
-            else "This pilot: swab RNA RIN about 1-3 (per-sample values to be added)")
+    ours = ("This pilot's nasal swabs: RIN {} across {} swabs, mean {:.1f}".format(
+        fmt_range(rins, 1), len(rins), sum(rins) / len(rins)) if rins
+            else "This pilot's nasal swabs: RIN to be added (rin.tsv on scratch)")
     cite = ("Martorella M, et al. Evaluation of noninvasive biospecimens for transcriptome studies. BMC Genomics. "
             "2023;24:790.")
     p = os.path.join(pub, "public_martorella2023.png")
@@ -742,8 +768,8 @@ def public_slides(D, args, genes, samples):
         b_rin = mart[("mean_RIN", "Buccal swab")]["value"]
         q = mart[("illumina_preseq_qc", "Buccal swab")]
         if rins:
-            s = D.slide("Our swab RNA is as degraded as reported for buccal swabs: RIN {} (mean {:.1f}) here, mean {} "
-                        "in Martorella et al. 2023".format(fmt_range(rins, 1), sum(rins) / len(rins), b_rin), size=26)
+            s = D.slide("Nasal swab RNA here: RIN {} (mean {:.1f}); published buccal swabs: mean {} "
+                        "(Martorella et al. 2023)".format(fmt_range(rins, 1), sum(rins) / len(rins), b_rin), size=26)
         else:
             s = D.slide("Buccal swab RNA is highly degraded in published data too: mean RIN {}, and {} of {} swabs "
                         "failed standard library QC".format(b_rin, q["n_fail"], q["n_total"]), size=26)
@@ -837,7 +863,7 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
         elif not ok:
             title = "Too few {} reads were assigned to isoforms (fewer than 20 in every swab)".format(g)
         else:
-            title = "{} isoform usage in buccal swabs".format(g)
+            title = "{} isoform usage in nasal swabs".format(g)
         s = D.slide(title, size=28)
         D.picture(s, p, 0.3, 1.45, SW - 0.6, 5.3)
         D.note(s, crit + "; isoforms quantified by {}".format(method), size=11)
