@@ -126,6 +126,10 @@ def parse_args():
     p.add_argument("--rin-figures", help="figures of scripts/rin_figures.py")
     p.add_argument("--sex-figures", help="figures of scripts/sex_check.py")
     p.add_argument("--composition-figures", help="figures of scripts/composition_figures.py (12_rna_composition.sh)")
+    p.add_argument("--isoform-figures", help="figures of scripts/isoform_similarity.py")
+    p.add_argument("--testability-figures", help="figures of scripts/junction_testability.py")
+    p.add_argument("--cellmix-figures", help="figures of scripts/cellmix_integrity.py")
+    p.add_argument("--dna-figures", help="figures of scripts/dna_background.py")
     p.add_argument("--gene-deck", action="store_true", help="results of one gene set only (GENE_SET other than main)")
     p.add_argument("--atlas-figures", help="figures of scripts/panel_atlas_figures.py (whole panel)")
     p.add_argument("--extra-genes", help="genes of extra_genes.txt, comma-separated")
@@ -335,6 +339,7 @@ def main():
         full_path_slides(D, args, genes, samples, filt)
     if args.composition_figures and os.path.isdir(args.composition_figures):
         composition_slides(D, args)
+    reads_origin_slides(D, args, genes)
 
     # 4. detection: reads of the two genes per swab
     path = os.path.join(deck_dir, "gene_reads.png")
@@ -791,6 +796,8 @@ def panel_slides(D, args, genes, samples, total):
                   0.5, 5.9, SW - 1.0, 1.0, size=14)
         D.note(s, note, size=9)
 
+    isoform_testability_slides(D, args, genes + extra)
+
     # the extra genes: background, public expression, swab results
     ep = args.extra_public
     for g in extra:
@@ -846,6 +853,124 @@ def panel_slides(D, args, genes, samples, total):
         if os.path.exists(q):
             s = D.slide("Read coverage along {} in each swab".format(g))
             D.picture(s, q, 2.0, 1.45, 9.3, 5.4)
+
+
+def reads_origin_slides(D, args, genes):
+    """upper bound of genomic DNA among the gene reads; cell mix of the swabs against integrity."""
+    df = args.dna_figures
+    p = os.path.join(df, "dna_background.png") if df else ""
+    if p and os.path.exists(p):
+        rows = read_tsv(os.path.join(df, "dna_background.tsv"))
+        parts, spl = [], []
+        for g in genes:
+            sh = [float(r["max_dna_share"]) * 100 for r in rows if r["gene"] == g and r["max_dna_share"] != "nan"]
+            sp = [int(r["spliced"]) / int(r["gene_reads"]) * 100 for r in rows if r["gene"] == g and int(r["gene_reads"])]
+            if sh:
+                parts.append("{} {}".format(g, fmt_range(sh, 0, True)))
+            if sp:
+                spl.append("{} {}".format(g, fmt_range(sp, 0, True)))
+        s = D.slide("Genomic DNA could account for at most " + "; ".join(parts) + " of the gene reads"
+                    if parts else "Genomic DNA among the gene reads", size=26)
+        D.picture(s, p, 0.3, 1.45, SW - 0.6, 4.4)
+        D.bullets(s, ["Spliced reads (certainly RNA): " + "; ".join(spl),
+                      "DNA expected on the exons = density of reads wholly inside the gene's introns x exonic length; "
+                      "intronic reads may also be pre-mRNA, so this is an upper bound"], 0.5, 5.9, SW - 1.0, 1.1,
+                  size=14)
+    cf = args.cellmix_figures
+    p = os.path.join(cf, "cellmix_integrity.png") if cf else ""
+    if p and os.path.exists(p):
+        rows = [r for r in read_tsv(os.path.join(cf, "cellmix_integrity.tsv")) if r["spearman_rho"]]
+        best = max(rows, key=lambda r: abs(float(r["spearman_rho"]))) if rows else None
+        s = D.slide("Cell mix of the swabs against RNA integrity: no clear link in {} swabs".format(best["n"])
+                    if best and float(best["p_value"]) >= 0.05 else "Cell mix of the swabs against RNA integrity",
+                    size=28)
+        D.picture(s, p, 0.3, 1.4, 8.4, 5.6)
+        items = []
+        if best:
+            items.append("Strongest: {} against {}, rho {:.2f} (p {:.2f})".format(
+                best["marker_group"].lower(), best["integrity_measure"], float(best["spearman_rho"]),
+                float(best["p_value"])))
+        items += ["Marker levels: mean counts per million off-panel gene reads of each marker group",
+                  "Exploratory: eight swabs from four donors"]
+        D.bullets(s, items, 8.9, 1.7, 4.2, 5.0, size=14)
+
+
+def isoform_testability_slides(D, args, genes):
+    """isoform usage against brain; read support of splice junctions and of patient variants (GTEx v8)."""
+    isf = args.isoform_figures
+    if isf and os.path.isdir(isf):
+        vals = defaultdict(dict)
+        for r in read_tsv(os.path.join(isf, "isoform_similarity_figures.tsv")):
+            vals[r["measure"]][r["key"]] = r["value"]
+        ov, sd = vals.get("median_overlap", {}), vals.get("percent_same_dominant", {})
+        low = vals.get("percent_overlap_below_0.5", {})
+        p = os.path.join(isf, "isoform_similarity.png")
+        if os.path.exists(p) and "Lung" in ov:
+            s = D.slide("Where panel genes are expressed, accessible tissues mostly use brain's isoforms: median "
+                        "overlap {:.2f} in lung, {:.2f} between cerebellum and cortex".format(
+                            float(ov["Lung"]), float(ov.get("Brain_Cerebellum", "nan"))), size=24)
+            D.picture(s, p, 0.3, 1.45, SW - 0.6, 4.2)
+            acc = [k for k in ov if k != "Brain_Cerebellum"]
+            D.bullets(s, [
+                "Same dominant isoform as cortex: {} of genes in accessible tissues; {:.0f}% within brain".format(
+                    fmt_range([float(sd[k]) for k in acc if k in sd], 0, True), float(sd.get("Brain_Cerebellum", 0))),
+                "Expressed but with a different isoform mix (overlap < 0.5): {} of genes; most in fibroblasts and "
+                "EBV lymphocytes".format(fmt_range([float(low[k]) for k in acc if k in low], 0, True)),
+                "GTEx v8 transcript medians (RSEM on short reads); lung stands in for nasal epithelium"],
+                0.5, 5.75, SW - 1.0, 1.3, size=14)
+        p = os.path.join(isf, "isoform_targets.png")
+        if os.path.exists(p):
+            tov = {}
+            for k, v in vals.get("target_overlap", {}).items():
+                g, t = k.split("|")
+                if v:
+                    tov.setdefault(g, {})[t] = float(v)
+            parts = ["{} {:.2f}".format(g, tov[g]["Lung"]) for g in genes if g in tov and "Lung" in tov[g]]
+            s = D.slide("Isoform overlap with brain cortex in lung: " + ", ".join(parts) if parts else
+                        "Isoform usage of the highlighted genes against brain cortex", size=26)
+            D.picture(s, p, 0.3, 1.45, SW - 0.6, 5.3)
+            D.note(s, "GTEx v8, GENCODE v26 transcripts; '-': gene below 5 TPM in cortex or the tissue. The MANE "
+                      "Select transcript of several genes is newer than GENCODE v26, so MANE usage is not compared.",
+                   size=11)
+    tf = args.testability_figures
+    if not tf or not os.path.isdir(tf):
+        return
+    jt = defaultdict(dict)
+    for r in read_tsv(os.path.join(tf, "junction_testability.tsv")):
+        if r["percent_ge20"]:
+            jt[r["gene"]][r["tissue"]] = float(r["percent_ge20"])
+    p = os.path.join(tf, "junction_testability.png")
+    if os.path.exists(p) and jt:
+        g0 = genes[0]
+        title = ("{}: {:.0f}% of canonical splice junctions have >= 20 reads in lung, {:.0f}% in fibroblasts, "
+                 "{:.0f}% in whole blood".format(g0, jt[g0].get("Lung", 0), jt[g0].get("Cells_Cultured_fibroblasts", 0),
+                                                 jt[g0].get("Whole_Blood", 0))) if g0 in jt else \
+            "Read support of canonical splice junctions by tissue"
+        s = D.slide(title, size=26)
+        D.picture(s, p, 0.3, 1.45, SW - 0.6, 4.6)
+        D.bullets(s, ["A junction with >= 20 reads in a tissue lets RNA from that tissue show whether a variant "
+                      "changes splicing there",
+                      "Brain-restricted genes (ion channels) have no supported junction in any accessible tissue"],
+                  0.5, 6.05, SW - 1.0, 0.9, size=14)
+        D.note(s, "GTEx v8 median junction reads per tissue (short-read libraries, about 50-80 million reads); MANE "
+                  "Select introns.", size=10)
+    p = os.path.join(tf, "variant_testability.png")
+    if os.path.exists(p):
+        summ = defaultdict(dict)
+        for r in read_tsv(os.path.join(tf, "variant_testability_summary.tsv")):
+            summ[r["gene"]][r["specimen"]] = (float(r["percent_testable"]), int(r["variants"]))
+        parts = ["{} {:.0f}% of {}".format(g, summ[g]["Lung"][0], summ[g]["Lung"][1]) for g in summ if "Lung" in summ[g]]
+        s = D.slide("Patient variants testable with airway RNA (lung, >= 20 junction reads): " + "; ".join(parts)
+                    if parts else "Patient variants testable by tissue", size=26)
+        D.picture(s, p, 0.3, 1.4, SW - 0.6, 5.0)
+        items = []
+        for g in summ:
+            items.append("{}: swabs {:.0f}%, fibroblasts {:.0f}%, esophagus mucosa {:.0f}%, whole blood {:.0f}%".format(
+                g, summ[g].get("swab", (0, 0))[0], summ[g].get("Cells_Cultured_fibroblasts", (0, 0))[0],
+                summ[g].get("Esophagus_Mucosa", (0, 0))[0], summ[g].get("Whole_Blood", (0, 0))[0]))
+        D.bullets(s, items, 0.5, 6.4, SW - 1.0, 0.8, size=13)
+        D.note(s, "Exonic variants: reads of the junctions flanking their exon; splice-site and intronic variants: "
+                  "reads of their intron's junction. Swabs: median reads at the variant per swab.", size=10)
 
 
 def roadmap_slide(D, args):

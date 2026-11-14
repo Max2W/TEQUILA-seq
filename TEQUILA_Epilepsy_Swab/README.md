@@ -315,6 +315,21 @@ cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy
 bash 10_slides.sh
 ```
 
+### Step 10 also draws: isoforms, testability, DNA background, cell mix
+
+- **Isoform usage against brain** (`scripts/isoform_similarity.py`): for every panel gene, how close the isoform mix in
+  each accessible tissue is to brain cortex, with brain cerebellum as the within-brain reference. It uses GTEx v8
+  transcript medians in `public_data/gtex_v8_transcript_medians.tsv.gz` (made by `scripts/fetch_gtex_isoforms.py`).
+- **Testability** (`scripts/junction_testability.py`):
+  - how many splice junctions of each gene's MANE transcript have at least 20 reads per tissue (GTEx v8 junction
+    medians, `public_data/raw/gtex_v8_junctions_<GENE>.tsv`);
+  - with the variant table, which patient variants could be tested with RNA from each tissue and from the swabs.
+    The variant outputs hold patient variants and stay on scratch.
+- **DNA background** (`scripts/dna_background.py`): an upper bound on the gene reads that could be genomic DNA. It
+  comes from the density of reads lying wholly inside the gene's introns.
+- **Cell mix against integrity** (`scripts/cellmix_integrity.py`): squamous, salivary and immune marker levels per
+  swab, against transcript coverage and RIN. This is exploratory.
+
 ### Folder layout on scratch
 
 ```

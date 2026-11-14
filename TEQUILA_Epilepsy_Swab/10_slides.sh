@@ -24,7 +24,7 @@ preflight() {
 }
 if [[ -z "${AFTER:-}" ]]; then preflight; fi
 
-if submit_self epi_slides 2 8G 01:00:00 "${_D}/10_slides.sh" "$@"; then
+if submit_self epi_slides 2 16G 03:00:00 "${_D}/10_slides.sh" "$@"; then
   exit 0
 fi
 preflight
@@ -178,6 +178,34 @@ if (( MAIN )) && [[ -s "${VARIANTS}" ]]; then
   var_args=(--variant-figures "${FIG}/variants")
 else
   echo "[slides] no ${VARIANTS}: patient variant coverage slides left out"
+fi
+
+# isoform usage against brain (GTEx v8 transcripts) and testability of splice junctions and patient variants
+if (( MAIN )); then
+  python "${ANALYSIS_DIR}/scripts/isoform_similarity.py" \
+    --medians "${ANALYSIS_DIR}/public_data/gtex_v8_transcript_medians.tsv.gz" --gtf "${GTF}" \
+    --genes "${genes_csv}${extra_csv:+,${extra_csv}}" --outdir "${FIG}/isoforms"
+  vcov=()
+  if [[ -s "${FIG}/variants/variant_coverage.tsv" ]]; then vcov=(--variant-coverage "${FIG}/variants/variant_coverage.tsv"); fi
+  python "${ANALYSIS_DIR}/scripts/junction_testability.py" --gtf "${GTF}" \
+    --genes "${genes_csv}${extra_csv:+,${extra_csv}}" --junctions-dir "${ANALYSIS_DIR}/public_data/raw" \
+    "${vcov[@]}" --outdir "${FIG}/testability"
+  extra_args+=(--isoform-figures "${FIG}/isoforms" --testability-figures "${FIG}/testability")
+  # does the cell mix of a swab explain its integrity? (needs the composition figures with marker genes)
+  if [[ -s "${FIG}/composition/composition_figures.tsv" ]] && grep -q marker_group_cpm "${FIG}/composition/composition_figures.tsv"; then
+    rin_opt=(); if [[ -s "${RIN_TSV}" ]]; then rin_opt=(--rin "${RIN_TSV}"); fi
+    python "${ANALYSIS_DIR}/scripts/cellmix_integrity.py" --composition-figures "${FIG}/composition/composition_figures.tsv" \
+      --fragmentation "${RESULTS_DIR}/fragmentation/filtered/fragmentation_summary.tsv" "${rin_opt[@]}" \
+      --sample-sheet "${SAMPLE_SHEET}" --genes "${genes_csv}" --outdir "${FIG}/cellmix"
+    extra_args+=(--cellmix-figures "${FIG}/cellmix")
+  fi
+fi
+# upper bound of genomic DNA among the gene reads (full-path BAMs; any gene set)
+if compgen -G "${QC_DIR}/bam/*.bam" >/dev/null; then
+  python "${ANALYSIS_DIR}/scripts/dna_background.py" --genes "${genes_csv}" --gtf-pattern "${FIG}/{gene}/{gene}_locus.gtf" \
+    --full-bam-pattern "${QC_DIR}/bam/{sample}.bam" --gene-bam-pattern "${FAST_DIR}/bam_filtered/{gene}/{sample}.bam" \
+    --sample-sheet "${SAMPLE_SHEET}" --outdir "${FIG}/dna"
+  extra_args+=(--dna-figures "${FIG}/dna")
 fi
 
 # run label for the sequencing slide: flow cell id(s) and run date(s) from the run folder names
