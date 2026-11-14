@@ -249,6 +249,25 @@ class Deck:
         tf.word_wrap, tf.vertical_anchor = True, MSO_ANCHOR.BOTTOM
         self.runs(tf.paragraphs[0], text, size, color=color)
 
+    def figure(self, s, path, bullets=(), note=None, side="bottom", size=14, note_size=10, top=1.45,
+               fig_w=8.4):
+        """picture plus bullets (below or right) and a footnote, sized so that nothing overlaps."""
+        note_h = 0.0
+        if note:
+            lines = max(1, int(len(note) * note_size / 1700) + 1)
+            note_h = 0.17 * lines * note_size / 10 + 0.12
+            self.note(s, note, size=note_size)
+        bottom = SH - 0.12 - note_h
+        if side == "right" and bullets:
+            self.picture(s, path, 0.3, top, fig_w, bottom - top)
+            self.bullets(s, list(bullets), fig_w + 0.5, top + 0.2, SW - fig_w - 0.8, bottom - top - 0.2, size=size)
+            return
+        n = sum(1 + len(t if isinstance(t, str) else t[1]) // 120 for t in bullets)
+        bh = (0.36 * n * size / 14 + 0.12) if bullets else 0.0
+        self.picture(s, path, 0.3, top, SW - 0.6, bottom - top - bh)
+        if bullets:
+            self.bullets(s, list(bullets), 0.5, bottom - bh, SW - 1.0, bh, size=size)
+
     def table(self, s, rows, x, y, w, col_w, size=12):
         t = s.shapes.add_table(len(rows), len(rows[0]), Inches(x), Inches(y), Inches(w),
                                Inches(0.38 * len(rows))).table
@@ -268,8 +287,7 @@ class Deck:
 
 # ------------------------------------------------------------------------------------------- content
 
-def main():
-    args = parse_args()
+def legacy_main(args):
     genes = args.genes.split(",")
     fig = args.figures_dir
     deck_dir = os.path.join(fig, "deck")
@@ -1444,6 +1462,677 @@ def add_gene_slides(D, g, fig, deck_dir, samples, sheet):
                 D.caption(s, k, x, 1.4, w)
                 D.picture(s, q, x, 1.85, w, 4.9)
             D.note(s, "Reads of {}; only {} annotated".format(g, g), size=11)
+
+
+
+# ------------------------------------------------------------------------------------------- the story deck
+
+def tsv_measures(path, key="key", measure="measure", value="value"):
+    out = defaultdict(dict)
+    for r in read_tsv(path):
+        out[r[measure]][r.get(key, "")] = r[value]
+    return out
+
+
+def numf(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def story(args):
+    genes = args.genes.split(",")
+    extra = [g for g in (args.extra_genes or "").split(",") if g and g not in genes]
+    fig = args.figures_dir
+    deck_dir = os.path.join(fig, "deck")
+    D = Deck(genes + extra)
+    sheet = read_tsv(args.sample_sheet)
+    samples = [r["sample_id"] for r in sheet]
+    kits = list(dict.fromkeys(r["condition"] for r in sheet))
+    kit_text = {r["condition"]: r["treatment"] for r in sheet}
+    donors = list(dict.fromkeys(r["donor"] for r in sheet))
+    total = defaultdict(int)
+    for r in read_tsv(args.read_counts):
+        total[r["sample_id"]] += int(r["n_reads"])
+    filt = {(r["gene"], r["sample_id"]): r for r in read_tsv(os.path.join(fig, "read_filter.tsv"))}
+    kit = {(r["measure"], r["gene"]): r for r in read_tsv(os.path.join(fig, "kit_comparison.tsv"))}
+    path = lambda *a: os.path.join(*a) if a[0] else ""  # noqa: E731
+    have = lambda p: bool(p) and os.path.exists(p)  # noqa: E731
+    summary = defaultdict(list)   # section -> sentences for the closing summary
+
+    def per_donor(measure, g):
+        k = kit.get((measure, g))
+        return [float(v) for part in k["per_donor"].split(";") for v in part.split(":")[1].split("/")] if k else []
+
+    # ---------------------------------------------------------------- title and the story in one slide
+    s = D.slide(None)
+    tb = s.shapes.add_textbox(Inches(0.8), Inches(1.9), Inches(SW - 1.6), Inches(3.2))
+    tf = tb.text_frame
+    tf.word_wrap, tf.vertical_anchor = True, MSO_ANCHOR.MIDDLE
+    p = tf.paragraphs[0]
+    p.alignment = PP_ALIGN.CENTER
+    if args.gene_deck:
+        D.runs(p, "{} in buccal swab RNA: targeted long-read results".format(glist(genes)), 36, bold=True)
+    else:
+        D.runs(p, "Reading epilepsy-gene RNA from accessible tissue: a buccal-swab long-read pilot, the gene panel "
+                  "across public data, and the case for nasal sampling", 34, bold=True)
+    p = tf.add_paragraph()
+    p.alignment = PP_ALIGN.CENTER
+    p.space_before = Pt(18)
+    D.runs(p, "TEQUILA-seq with the {}-gene epilepsy and neurodevelopmental disorder panel; {} donors, {} swab kits; "
+              "genes of interest {}".format(panel_size(), len(donors), len(kits), glist(genes + extra)), 18,
+           color=GREY)
+    ef = args.exploration_figures
+    if not args.gene_deck and have(path(ef, "roadmap.png")):
+        s = D.slide("The story in one slide: from buccal swabs to the nose", size=30)
+        D.picture(s, path(ef, "roadmap.png"), 0.3, 1.4, SW - 0.6, 5.6)
+
+    # ---------------------------------------------------------------- 1. background
+    pub = args.public_figures
+    if not args.gene_deck and pub and os.path.isdir(pub):
+        D.divider("1  Why accessible-tissue RNA for epilepsy genes",
+                  "What published data say about buccal RNA, and where {} are expressed".format(glist(genes)))
+        gtex, mart, nasal = public_numbers(args)
+        mv = lambda m, k: (mart.get((m, k)) or {}).get("value")  # noqa: E731
+        q = mart.get(("illumina_preseq_qc", "Buccal swab"), {})
+        if have(path(pub, "public_martorella2023.png")):
+            s = D.slide("Published buccal swab RNA is highly degraded: mean RIN {}, and {} of {} swabs failed standard "
+                        "library QC".format(mv("mean_RIN", "Buccal swab"), q.get("n_fail"), q.get("n_total")), size=26)
+            D.figure(s, path(pub, "public_martorella2023.png"), [
+                "19 healthy donors sampled 3-4 times: buccal swab, saliva, hair follicles and urine; short-read RNA-seq",
+                "Buccal swabs captured a median {}% of OMIM disease genes, against {}% for hair and {}% for urine; hair "
+                "follicles kept RNA intact (mean RIN {})".format(
+                    mv("omim_capture_percent", "Buccal swab"), mv("omim_capture_percent", "Hair follicles"),
+                    mv("omim_capture_percent", "Urine cell pellet"), mv("mean_RIN", "Hair follicles"))],
+                note="Martorella M, et al. Evaluation of noninvasive biospecimens for transcriptome studies. BMC "
+                     "Genomics. 2023;24:790. Values redrawn from the paper's text.")
+        expr = read_tsv(path(pub, "public_expression.tsv"))
+        val = {(r["source"], r["tissue"], r["gene"]): float(r["value"]) for r in expr}
+        if have(path(pub, "public_accessible.png")) and expr:
+            gv = lambda t, x: val.get(("GTEx v10", t, x))  # noqa: E731
+            sal = [gv("Minor Salivary Gland", x) for x in genes]
+            s = D.slide("{} {} expressed at low levels in oral tissue: {} TPM in minor salivary gland".format(
+                glist(genes), "are" if len(genes) > 1 else "is",
+                glist("{:.1f}".format(v) for v in sal if v is not None)), size=26)
+            D.figure(s, path(pub, "public_accessible.png"), [
+                "Brain cortex: {} TPM".format(glist("{:.0f}".format(gv("Brain - Cortex", x) or 0) for x in genes)),
+                "Whole blood: {} TPM".format(glist("{:.1f}".format(gv("Whole Blood", x) or 0) for x in genes)),
+                "Clinical RNA-seq for rare disease has used blood, fibroblasts, lymphoblastoid cells and muscle, "
+                "not buccal swabs (Cummings 2017; Fresard 2019; Murdock 2021)",
+                "No public long-read RNA study of these genes in buccal swabs was found"], side="right",
+                note="GTEx v10 median TPM per tissue (GTEx Portal API, retrieved 2026-11-12)", fig_w=7.9)
+
+    # ---------------------------------------------------------------- 2. pilot 1: design and data
+    D.divider("2  Pilot 1: buccal swabs, design and data",
+              "{} lab donors, {} swab and RNA-extraction kits, targeted long-read RNA sequencing".format(
+                  len(donors), len(kits)))
+    s = D.slide("Study design: the same donors sampled with two swab and RNA extraction kits")
+    rows = [["Sample", "Donor", "Swab + RNA extraction", "Barcode"]] + [
+        [r["sample_id"].replace("_", " "), r["donor"], r["treatment"], r["barcode"].replace("barcode", "NB")]
+        for r in sheet]
+    D.table(s, rows, 0.5, 1.7, 7.4, [1.3, 0.8, 4.3, 1.0], size=12)
+    D.bullets(s, ["Questions for low-RIN swab RNA:",
+                  (1, "Are {} detected, and at what depth?".format(glist(genes))),
+                  (1, "How intact is the RNA, and what are the reads made of?"),
+                  (1, "Which isoforms, splicing events and patient variants can be read?"),
+                  "Kits compared within donor (paired, n = {})".format(len(donors))], 8.3, 1.7, 4.6, 4.5, size=16)
+    ff = args.full_figures
+    fpv = tsv_measures(path(ff, "full_path_figures.tsv"), key="sample_id") if ff else {}
+    if have(path(deck_dir, "reads_per_sample.png")):
+        per = [total[x] / 1e6 for x in samples]
+        mr = [float(v) for v in fpv.get("mapping_rate_percent", {}).values()]
+        ml = [float(v) for v in fpv.get("median_read_length", {}).values()]
+        rec = {}
+        for r in read_tsv(path(ff, "full_path_figures.tsv")) if ff else []:
+            if r["measure"] == "kept_full_vs_fast":
+                a_, b_ = map(int, r["value"].split("/"))
+                if a_:
+                    rec.setdefault(r["gene"], []).append(b_ / a_ * 100)
+        s = D.slide("{:.1f} M reads from {} swabs; {} map to the genome".format(
+            sum(per), len(samples), fmt_range(mr, 0, True)) if mr else
+            "Targeted long-read RNA sequencing of the swabs", size=28)
+        items = ["Multiplexed TEQUILA-seq library ({}-gene probe panel), ONT SQK-NBD114.24; {}: {} M reads per "
+                 "swab".format(panel_size(), args.run_label, fmt_range(per, 1))]
+        if ml:
+            items.append("Median read length {} nt".format(fmt_range(ml)))
+        if rec:
+            items.append("Gene reads by k-mer baiting (fast path) match full alignment: " + "; ".join(
+                "{} {}".format(g, fmt_range(rec[g], 0, True)) for g in genes if g in rec) + " recovered")
+        D.figure(s, path(deck_dir, "reads_per_sample.png"), items)
+    exf = args.expression_figures
+    exv = defaultdict(dict)
+    for r in read_tsv(path(exf, "expression_qc.tsv")) if exf else []:
+        exv[r["measure"]][r["sample_or_pair"]] = r["value"]
+    if have(path(exf, "panel_capture.png")):
+        on = [float(v) for v in exv["on_target_percent"].values()]
+        s = D.slide("On-target rate on the {}-gene panel: {} of all reads".format(panel_size(), fmt_range(on, 1, True)))
+        items = ["On-target = reads overlapping any of the {} probe-panel genes, as % of all reads".format(
+            panel_size())]
+        v = [float(x) for x in exv.get("reads_percent_Outside_annotated_genes", {}).values()]
+        if v:
+            items.append("Reads outside annotated genes: {}; section 3 shows what they are".format(
+                fmt_range(v, 0, True)))
+        D.figure(s, path(exf, "panel_capture.png"), items)
+        summary["pilot"].append("On-target rate {} of all reads on the {}-gene panel".format(
+            fmt_range(on, 0, True), panel_size()))
+    if have(path(exf, "pca.png")):
+        sx = read_tsv(path(args.sex_figures, "sex_check.tsv")) if args.sex_figures else []
+        agree = {r["donor"]: r["donor_swabs_agree"] == "True" for r in sx}
+        s = D.slide("Samples cluster by {} in gene expression".format(pca_grouping(exv)))
+        items = ["PCA of log2(CPM + 1) of all genes; all reads aligned (full path)"]
+        if agree:
+            items.append("Sample identity: sex-marker expression (XIST, Y-linked genes) agrees between the two swabs "
+                         "of {} of {} donors".format(sum(agree.values()), len(agree)))
+        D.figure(s, path(exf, "pca.png"), items)
+
+    # ---------------------------------------------------------------- 3. integrity and composition
+    D.divider("3  How intact is swab RNA, and what are the reads made of?",
+              "RIN, fragmentation, read categories, genomic DNA and cell types")
+    rf = args.rin_figures
+    if have(path(rf, "rin_integrity.png")):
+        rr = read_tsv(path(rf, "rin_integrity.tsv"))
+        rin = {r["sample_id"]: float(r["value"]) for r in rr if r["measure"] == "RIN"}
+        s = D.slide("Swab RNA is degraded: RIN {} (mean {:.1f}), as reported for buccal swabs".format(
+            fmt_range(list(rin.values()), 1), sum(rin.values()) / len(rin)), size=28)
+        items = []
+        for r in rr:
+            if r["measure"].startswith("spearman_rho_median_tx_coverage"):
+                items.append("{}: Spearman rho between RIN and median transcript coverage = {}".format(
+                    r["gene"], r["value"]))
+        items.append("n = {} swabs; correlations are exploratory".format(len(rin)))
+        D.figure(s, path(rf, "rin_integrity.png"), items)
+        summary["integrity"].append("RIN {} (mean {:.1f}), in line with published buccal swabs".format(
+            fmt_range(list(rin.values()), 1), sum(rin.values()) / len(rin)))
+    if have(path(fig, "figure2.png")):
+        fl = {g: int(sum(per_donor("full_length_reads", g))) for g in genes if per_donor("full_length_reads", g)}
+        s = D.slide("Swab RNA is fragmented: " + ", ".join("{:,} full-length {} reads".format(fl[g], g) for g in fl) +
+                    " in total" if fl else "Fragmentation of {} transcripts".format(glist(genes)))
+        items = ["{}: reads cover a median {} of the canonical transcript".format(
+            g, fmt_range([v * 100 for v in per_donor("median_transcript_coverage", g)], 0, True))
+            for g in genes if per_donor("median_transcript_coverage", g)]
+        items.append("Full length = the read reaches the first and the last exon of the MANE transcript")
+        D.figure(s, path(fig, "figure2.png"), items, side="right", fig_w=8.4)
+        if fl:
+            summary["integrity"].append("Fragmented: " + ", ".join("{:,} full-length {} reads".format(fl[g], g)
+                                                                   for g in fl) + " across all swabs")
+    cf = args.composition_figures
+    cv = tsv_measures(path(cf, "composition_figures.tsv"), key="sample_id") if cf else {}
+    rng = lambda m: fmt_range([float(x) for x in cv.get(m, {}).values() if numf(x) is not None], 0, True)  # noqa: E731
+    if have(path(cf, "composition.png")):
+        exp = {r["key"]: float(r["value"]) for r in read_tsv(path(cf, "composition_figures.tsv"))
+               if r["measure"] == "expected_random_dna"}
+        s = D.slide("Most off-panel reads are not mRNA: {} spliced, {} intronic or intergenic".format(
+            rng("summary_exonic_spliced"), rng("summary_intronic_intergenic")), size=28)
+        items = ["Off-panel reads (not selected by the probes) show the RNA that went into the library",
+                 "Random genomic DNA would give {:.0f}% exonic, {:.0f}% intronic, {:.0f}% intergenic and no spliced "
+                 "reads (hatched bar): the background looks like DNA carry-over or pre-mRNA".format(
+                     exp.get("exonic, unspliced", 0), exp.get("intronic", 0), exp.get("intergenic", 0))
+                 if exp else "Intronic and intergenic reads point to DNA carry-over or pre-mRNA"]
+        D.figure(s, path(cf, "composition.png"), items,
+                 note="Mitochondrial and rRNA {}; unmapped {}. Exonic: >= 50% of aligned bases on exons; spliced: an "
+                      "intron >= 30 nt.".format(rng("summary_mito_rrna"), rng("summary_unmapped")))
+        summary["integrity"].append("Off-panel reads: {} spliced mRNA, {} intronic or intergenic, close to the "
+                                    "profile of genomic DNA".format(rng("summary_exonic_spliced"),
+                                                                    rng("summary_intronic_intergenic")))
+    df = args.dna_figures
+    if have(path(df, "dna_background.png")):
+        rows = read_tsv(path(df, "dna_background.tsv"))
+        parts, spl, top = [], [], 0.0
+        for g in genes:
+            sh = [float(r["max_dna_share"]) * 100 for r in rows if r["gene"] == g and numf(r["max_dna_share"]) is not None]
+            top = max([top] + sh)
+            sp = [int(r["spliced"]) / int(r["gene_reads"]) * 100 for r in rows if r["gene"] == g and int(r["gene_reads"])]
+            if sh:
+                parts.append("{} {}".format(g, fmt_range(sh, 0, True)))
+            if sp:
+                spl.append("{} {}".format(g, fmt_range(sp, 0, True)))
+        s = D.slide(("But the gene reads are RNA: genomic DNA could explain at most " if top < 10 else
+                     "Genomic DNA could explain up to ") + "; ".join(parts) + " of the gene reads"
+                    if parts else "Genomic DNA among the gene reads", size=26)
+        D.figure(s, path(df, "dna_background.png"), [
+            "Spliced reads (certainly RNA): " + "; ".join(spl),
+            "Upper bound = density of reads wholly inside the gene's introns x exonic length (intronic reads may also "
+            "be pre-mRNA)"])
+        summary["integrity"].append("Genomic DNA explains at most " + "; ".join(parts) + " of the gene reads")
+    if have(path(cf, "markers.png")):
+        groups = {r["key"]: float(r["value"]) for r in read_tsv(path(cf, "composition_figures.tsv"))
+                  if r["measure"] == "marker_group_mean_cpm"}
+        ranked = sorted(groups, key=groups.get, reverse=True)
+        s = D.slide("Swab RNA comes mainly from {}".format(ranked[0].lower()) if ranked else "Cell-type markers",
+                    size=28)
+        D.figure(s, path(cf, "markers.png"), ["{}: mean {:,.0f} CPM".format(g, groups[g]) for g in ranked] +
+                 ["Airway markers and OMP (olfactory neurons) are the reference for a nasal sample"], side="right",
+                 fig_w=7.4, note="CPM: counts per million reads assigned to genes outside the probe panel")
+    cmf = args.cellmix_figures
+    if have(path(cmf, "cellmix_integrity.png")):
+        rows = [r for r in read_tsv(path(cmf, "cellmix_integrity.tsv")) if r["spearman_rho"]]
+        best = max(rows, key=lambda r: abs(float(r["spearman_rho"]))) if rows else None
+        if best and float(best["p_value"]) < 0.05:
+            title = "{} {} with {} markers (rho {:.2f}, p {:.3f}, n = {}; exploratory)".format(
+                best["integrity_measure"].replace(" (%)", ""), "rises" if float(best["spearman_rho"]) > 0 else "falls",
+                best["marker_group"].lower(), float(best["spearman_rho"]), float(best["p_value"]), best["n"])
+        else:
+            title = "Cell mix of the swabs against RNA integrity: no clear link"
+        s = D.slide(title, size=24)
+        others = [r for r in rows if r is not best and float(r["p_value"]) < 0.1]
+        D.figure(s, path(cmf, "cellmix_integrity.png"), [
+            "Each point a swab (letter: donor); marker level = mean CPM of the marker group",
+            "Other trends (p < 0.1): " + ("; ".join("{} vs {} rho {:.2f}".format(
+                r["integrity_measure"].replace(" median transcript coverage (%)", " coverage"),
+                r["marker_group"].lower(), float(r["spearman_rho"])) for r in others) or "none"),
+            "Eight swabs from four donors: a lead to test in pilot 2, not a finding"], side="right", fig_w=7.0)
+
+    # ---------------------------------------------------------------- 4. the genes
+    D.divider("4  The genes: {}".format(glist(genes + (["{} more".format(len(extra))] if extra else []))),
+              "Background, detection, coverage, isoforms, splicing and patient variants")
+    af = args.atlas_figures
+    if extra and have(path(af, "gene_frequency.png")):
+        s = D.slide("Seven genes among the most frequent causes of genetic epilepsy", size=30)
+        D.figure(s, path(af, "gene_frequency.png"), [
+            "Added to {}: {}; all ClinGen Definitive".format(glist(genes), glist(extra)),
+            "Left out: PRRT2 and DEPDC5 (mostly self-limited or focal epilepsy); PCDH19 (females) would be next"],
+            note="Truty R, et al. Epilepsia Open. 2019;4:397-408.  Symonds JD, et al. Brain. 2019;142:2303-2318.")
+    for g in genes:
+        bg = BACKGROUND.get(g)
+        if bg:
+            s = D.slide(bg["title"])
+            model = path(deck_dir, "{}_gene_model.png".format(g))
+            if have(model):
+                D.picture(s, model, 0.4, 1.5, 6.2, 1.6)
+            D.bullets(s, bg["left"], 0.5, 3.4 if have(model) else 1.6, 6.2, 3.0, size=16)
+            D.bullets(s, bg["right"], 6.9, 1.6, 6.0, 4.9, size=16)
+            D.note(s, bg["refs"], size=12)
+    if have(path(deck_dir, "gene_reads.png")) and filt:
+        det = {g: sum(1 for x in samples if int(filt.get((g, x), {}).get("kept", 0)) > 0) for g in genes}
+        s = D.slide("{} detected in {}".format(glist(genes) + (" are" if len(genes) > 1 else " is"),
+                                               "all {} swabs".format(len(samples))
+                                               if all(det[g] == len(samples) for g in genes) else
+                                               "; ".join("{} of {}".format(det[g], len(samples)) for g in genes)))
+        kit_of = {r["sample_id"]: r["condition"] for r in sheet}
+        items = []
+        for g in genes:
+            items.append("{}: ".format(g) + "; ".join("{} {} reads ({} per million)".format(
+                k, fmt_range([int(filt[(g, x)]["kept"]) for x in samples if kit_of[x] == k and (g, x) in filt]),
+                fmt_range([int(filt[(g, x)]["kept"]) / total[x] * 1e6 for x in samples
+                           if kit_of[x] == k and (g, x) in filt])) for k in kits))
+        D.figure(s, path(deck_dir, "gene_reads.png"), items)
+        summary["genes"].append("{} detected in every swab ({} gene reads per swab)".format(
+            glist(genes), glist(fmt_range([int(filt[(g, x)]["kept"]) for x in samples if (g, x) in filt])
+                                for g in genes)))
+    crit = ("Only transcripts with an isoform fraction >= 5% (minimum of 20 reads in the denominator) and >= 3 reads "
+            "in at least one sample")
+    for g in genes:
+        q = path(fig, g, "{}_coverage_lines.png".format(g))
+        if have(q):
+            s = D.slide("Read coverage along {} in each swab".format(g))
+            D.figure(s, q, note="Gene reads summed per position; introns shortened. Coverage adds up short reads and "
+                                "does not show fragmentation by itself.")
+        iso = read_tsv(path(deck_dir, "{}_isoforms.tsv".format(g)))
+        q = path(deck_dir, "{}_isoform_fraction.png".format(g))
+        if have(q) and iso:
+            ok = [x for x in samples if iso[0].get("{}_fraction".format(x), "NA") != "NA"]
+            canon = [r for r in iso if r["category"] == "canonical"]
+            ptc = [r for r in iso if r["category"] == "Premature termination codon"]
+            fr = [float(canon[0]["{}_fraction".format(x)]) * 100 for x in ok] if canon and ok else []
+            s = D.slide("The canonical {} isoform accounts for {} of isoform reads".format(g, fmt_range(fr, 0, True))
+                        if fr else "{} isoform usage in buccal swabs".format(g), size=28)
+            items = []
+            if ptc and ok:
+                items.append("Isoforms with a premature termination codon: {} of isoform reads".format(fmt_range(
+                    [sum(float(r["{}_fraction".format(x)]) for r in ptc) * 100 for x in ok], 0, True)))
+            items.append("Partial reads are assigned to the isoforms they are compatible with: read the proportions "
+                         "with care")
+            D.figure(s, q, items, note=crit + "; isoforms quantified by {}.".format(iso[0]["method"].replace("_", " ")))
+        drawn = read_tsv(path(deck_dir, "{}_events_drawn.tsv".format(g)))
+        levels = defaultdict(dict)
+        for r in read_tsv(path(deck_dir, "{}_splicing_events.tsv".format(g))):
+            levels[r["event_id"]][r["sample_id"]] = r
+        for d in drawn[:1]:
+            q = path(deck_dir, d["figure"] + ".png")
+            if not have(q):
+                continue
+            lv = [float(r["level_percent"]) for r in levels[d["event_id"]].values() if r["level_percent"] != "NA"]
+            one = next(iter(levels[d["event_id"]].values()))
+            is_ce = d["type"] == "Cassette exon"
+            what = "{} {}{}".format(g, "" if one["in_gencode"] == "True" else "novel ",
+                                    "cassette exon" if is_ce else d["type"].lower())
+            s = D.slide("{}: {} {} in {} swab(s) with >= 20 reads".format(
+                what, "inclusion" if is_ce else "usage", fmt_range(lv, 0, True), len(lv)) if lv else what, size=28)
+            D.figure(s, q, note="{}:{:,}-{:,}. {} = {} reads / {} reads (minimum of 20 reads in the denominator); {} "
+                                "splicing event(s) with >= 20 reads in {} in total.".format(
+                                    one["chrom"], int(one["start"]), int(one["end"]),
+                                    "Exon inclusion" if is_ce else "Splice-site usage",
+                                    "inclusion junction" if is_ce else "alternative junction",
+                                    "inclusion or skipping junction" if is_ce else "alternative or canonical junction",
+                                    len(drawn), g))
+    vf = args.variant_figures
+    vt = defaultdict(dict)
+    tf = args.testability_figures
+    for r in read_tsv(path(tf, "variant_testability_summary.tsv")) if tf else []:
+        vt[r["gene"]][r["specimen"]] = (float(r["percent_testable"]), int(r["variants"]))
+    if have(path(vf, "variant_coverage_summary.png")):
+        rows = read_tsv(path(vf, "variant_coverage.tsv"))
+        cols_ = [c for c in rows[0] if c.endswith("_reads") and not c.endswith("junction_reads")
+                 and c not in ("all_swabs_reads", "all_samples_reads")] if rows else []
+        parts = []
+        for g in genes:
+            vs = [r for r in rows if r["gene"] == g]
+            if vs:
+                n20 = sum(1 for r in vs if max(int(r[c]) for c in cols_) >= 20)
+                parts.append("{} {} of {}".format(g, n20, len(vs)))
+        s = D.slide("Patient variants covered by >= 20 reads in at least one swab: " + ", ".join(parts), size=26)
+        items = ["Distinct c. variants of {} from the lab's patient list, on the MANE Select transcripts; reference "
+                 "base confirmed for {} variants".format(glist(genes),
+                                                         sum(r["reference_check"] == "match" for r in rows))]
+        if vt:
+            items.append("In a typical swab (median of the 8): " + "; ".join(
+                "{} {:.0f}% of variants with >= 20 reads".format(g, vt[g]["swab"][0]) for g in genes
+                if "swab" in vt.get(g, {})))
+        D.figure(s, path(vf, "variant_coverage_summary.png"), items)
+        if vt:
+            summary["genes"].append("Patient variants readable (>= 20 reads) in a typical swab: " + "; ".join(
+                "{} {:.0f}%".format(g, vt[g]["swab"][0]) for g in genes if "swab" in vt.get(g, {})))
+    er = args.extra_results
+    if extra and er and os.path.isdir(er):
+        efilt = read_tsv(os.path.join(er, "figures", "read_filter.tsv"))
+        frag = read_tsv(os.path.join(er, "fragmentation", "filtered", "fragmentation_summary.tsv"))
+        kept = defaultdict(dict)
+        for r in efilt:
+            kept[r["gene"]][r["sample_id"]] = int(r["kept"])
+        frm = defaultdict(dict)
+        for r in frag:
+            frm[r["gene"]][r["sample_id"]] = r
+        rows = [["Gene", "Swabs with reads", "Gene reads per swab", "Per million", "Median transcript coverage",
+                 "Full-length reads (all swabs)"]]
+        for g in extra:
+            k = kept.get(g, {})
+            xs = [x for x in samples if x in k]
+            cov = [float(frm[g][x]["median_tx_coverage"]) * 100 for x in xs if x in frm.get(g, {}) and k[x] > 0]
+            rows.append([g, "{} of {}".format(sum(1 for x in xs if k[x] > 0), len(samples)),
+                         fmt_range([k[x] for x in xs]), fmt_range([k[x] / total[x] * 1e6 for x in xs if total.get(x)], 1),
+                         fmt_range(cov, 0, True) if cov else "-",
+                         "{:,}".format(sum(int(frm[g][x]["full_length_reads"]) for x in xs if x in frm.get(g, {})))])
+        det = [r[0] for r in rows[1:] if r[1].startswith(str(len(samples)) + " ")]
+        s = D.slide("Five more genes in swab RNA: {} detected in every swab".format(glist(det) if det else "none"),
+                    size=28)
+        D.table(s, rows, 0.4, 1.6, SW - 0.8, [1.6, 1.9, 2.4, 1.8, 2.5, 2.33], size=13)
+        D.bullets(s, ["Same analysis as {}, with gene reads from the full-path alignment and isoforms from AMALGAM; "
+                      "every figure for these genes is in the deck TEQUILA_Epilepsy_Swab_extra_genes.pptx".format(
+                          glist(genes)),
+                      "Ion-channel genes (SCN1A, KCNQ2, SCN2A) are brain-restricted (section 5): few or no reads expected"],
+                  0.5, 5.2, SW - 1.0, 1.6, size=14)
+        summary["genes"].append("Five more genes: {} detected in every swab".format(glist(det) if det else "none"))
+
+    if args.gene_deck:
+        D.prs.save(args.out)
+        print("{} slides -> {}".format(len(D.prs.slides), args.out))
+        return
+
+    # ---------------------------------------------------------------- 5. which tissue: public data across the panel
+    av = defaultdict(dict)
+    for r in read_tsv(path(af, "panel_atlas_figures.tsv")) if af else []:
+        av[r["measure"]][r["key"]] = r["value"]
+    D.divider("5  Which accessible tissue could do better?",
+              "The {} panel genes across brain and accessible specimens in public data: expression, isoforms and "
+              "splice junctions".format(panel_size()))
+    note = ("Measured in the specimen (open GEO RNA-seq, healthy or control samples): nasal brushings GSE152004 "
+            "(n = 695) and GSE118761 (children, n = 14), buccal brushings GSE330022 (n = 24), plucked hair GSE224010 "
+            "(n = 5), PAXgene blood GSE112087 (n = 29), cultured urine cells GSE235813 (n = 37); * GTEx v8. TPM scaled "
+            "over protein-coding genes.")
+    if have(path(af, "atlas_coverage.png")):
+        rec = {k: float(v) for k, v in av["brain_expressed_recovered_percent_all"].items()}
+        nas = [rec[k] for k in ("Nasal brushing", "Nasal brushing, children") if k in rec]
+        s = D.slide("Nasal brushing expresses {} of the {} brain-expressed panel genes; buccal brushing {:.0f}%, "
+                    "plucked hair {:.0f}%".format(fmt_range(nas, 0, True), int(float(av["brain_expressed_genes"][""])),
+                                                  rec.get("Buccal brushing", 0), rec.get("Plucked hair follicles", 0)),
+                    size=26)
+        D.figure(s, path(af, "atlas_coverage.png"), [
+            "GTEx stand-ins overstate: esophagus mucosa {:.0f}% against measured buccal brushing {:.0f}%; skin {:.0f}% "
+            "against plucked hair {:.0f}%".format(rec.get("Esophagus mucosa", 0), rec.get("Buccal brushing", 0),
+                                                  rec.get("Skin", 0), rec.get("Plucked hair follicles", 0)),
+            "Two independent nasal cohorts agree; PAXgene blood {:.0f}%, cultured urine cells {:.0f}%, fibroblasts "
+            "{:.0f}%".format(rec.get("Whole blood (PAXgene)", 0), rec.get("Urine-derived cells (cultured)", 0),
+                              rec.get("Cultured fibroblasts", 0))], note=note, note_size=9)
+        summary["tissues"].append("Nasal brushing expresses {} of the brain-expressed panel genes (buccal brushing "
+                                  "{:.0f}%)".format(fmt_range(nas, 0, True), rec.get("Buccal brushing", 0)))
+    if have(path(af, "atlas_heatmap.png")):
+        n0 = int(float(av["brain_only_genes"][""]))
+        only = [l.strip() for l in open(path(af, "brain_only_genes.txt")) if l.strip()]
+        hi = [g for g in genes + extra if g in only]
+        pair = list(av.get("best_pair", {}).items())
+        s = D.slide("{} brain-expressed panel genes ({:.0f}%) reach 10 TPM in no accessible specimen".format(
+            n0, n0 / float(av["brain_expressed_genes"][""]) * 100), size=28)
+        D.picture(s, path(af, "atlas_heatmap.png"), 0.3, 1.4, 5.0, 5.45)
+        D.bullets(s, ["Genes grouped by the number of accessible specimens in which they reach 10 TPM (top: all; "
+                      "bottom: none)",
+                      "Brain-only genes include {}".format(glist(hi) if hi else "none of the highlighted genes"),
+                      "Best pair of specimens: {} ({:.0f}% of brain-expressed genes)".format(
+                          pair[0][0].replace(" + ", " and ").lower(), float(pair[0][1])) if pair else "",
+                      "For brain-only genes, neurons made from patient cells would be needed"], 5.6, 1.7, 7.4, 5.0,
+                  size=15)
+        D.note(s, note, size=9)
+    if have(path(af, "targets_specimens.png")):
+        tpm = {}
+        for k, v in av.get("target_tpm", {}).items():
+            g, c = k.split("|")
+            tpm.setdefault(g, {})[c] = float(v)
+        accs = ["Nasal brushing", "Nasal brushing, children", "Buccal brushing", "Plucked hair follicles",
+                "Whole blood (PAXgene)", "Urine-derived cells (cultured)", "Cultured fibroblasts", "EBV lymphocytes",
+                "Minor salivary gland"]
+        restricted = [g for g in tpm if max(tpm[g].get(c, 0) for c in accs) < 1]
+        broad = [g for g in tpm if g not in restricted]
+        s = D.slide("{} are brain-restricted; {} reach accessible specimens".format(glist(restricted), glist(broad))
+                    if restricted and broad else "The seven genes in brain and accessible specimens", size=26)
+        odd = [g for g in tpm if tpm[g].get("Buccal brushing", 0) > 5 * max(tpm[g].get("Nasal brushing", 0), 1)]
+        D.figure(s, path(af, "targets_specimens.png"), [
+            "Nasal brushing: " + ", ".join("{} {}".format(g, "{:.0f}".format(v) if v >= 10 else "{:.1f}".format(v)
+                                                            if v >= 0.1 else "<0.1")
+                                           for g in tpm for v in [tpm[g].get("Nasal brushing")] if v is not None) +
+            " TPM",
+            "{} reads high only in buccal brushings, a total-RNA library where intronic reads can raise long genes: "
+            "uncertain".format(glist(odd)) if odd else "Brain-restricted: below 1 TPM in every accessible specimen"],
+            note=note, note_size=9)
+        if restricted:
+            summary["tissues"].append("{} are brain-restricted: no accessible tissue serves them".format(
+                glist(restricted)))
+    isf = args.isoform_figures
+    iv = defaultdict(dict)
+    for r in read_tsv(path(isf, "isoform_similarity_figures.tsv")) if isf else []:
+        iv[r["measure"]][r["key"]] = r["value"]
+    ov, sd, low = iv.get("median_overlap", {}), iv.get("percent_same_dominant", {}), iv.get("percent_overlap_below_0.5", {})
+    if have(path(isf, "isoform_similarity.png")) and "Lung" in ov:
+        s = D.slide("Where panel genes are expressed, accessible tissues mostly use brain's isoforms: median overlap "
+                    "{:.2f} in lung, {:.2f} within brain".format(float(ov["Lung"]),
+                                                                  float(ov.get("Brain_Cerebellum", "nan"))), size=24)
+        acc = [k for k in ov if k != "Brain_Cerebellum"]
+        D.figure(s, path(isf, "isoform_similarity.png"), [
+            "Same dominant isoform as cortex: {} of genes in accessible tissues; {:.0f}% within brain".format(
+                fmt_range([float(sd[k]) for k in acc if k in sd], 0, True), float(sd.get("Brain_Cerebellum", 0))),
+            "Expressed but a different isoform mix (overlap < 0.5): {} of genes, most in fibroblasts and EBV "
+            "lymphocytes".format(fmt_range([float(low[k]) for k in acc if k in low], 0, True))],
+            note="GTEx v8 transcript medians (RSEM on short reads); lung stands in for nasal epithelium; overlap = sum "
+                 "of min(usage in cortex, usage in the tissue).")
+        summary["tissues"].append("Isoform usage in lung is close to brain (median overlap {:.2f}; {:.2f} within "
+                                  "brain)".format(float(ov["Lung"]), float(ov.get("Brain_Cerebellum", "nan"))))
+    if have(path(isf, "isoform_targets.png")):
+        tov = {}
+        for k, v in iv.get("target_overlap", {}).items():
+            g, t = k.split("|")
+            if v:
+                tov.setdefault(g, {})[t] = float(v)
+        parts = ["{} {:.2f}".format(g, tov[g]["Lung"]) for g in genes + extra if g in tov and "Lung" in tov[g]]
+        s = D.slide("Isoform overlap with brain cortex in lung: " + ", ".join(parts) if parts else
+                    "Isoform usage of the highlighted genes against brain cortex", size=26)
+        D.figure(s, path(isf, "isoform_targets.png"),
+                 note="GTEx v8 (GENCODE v26 transcripts). '-': below 5 TPM in cortex or the tissue. MECP2 keeps its "
+                      "brain isoform balance only within brain.")
+    jt = defaultdict(dict)
+    for r in read_tsv(path(tf, "junction_testability.tsv")) if tf else []:
+        if r["percent_ge20"]:
+            jt[r["gene"]][r["tissue"]] = float(r["percent_ge20"])
+    if have(path(tf, "junction_testability.png")) and genes[0] in jt:
+        g0 = genes[0]
+        s = D.slide("{}: {:.0f}% of canonical splice junctions have >= 20 reads in lung, {:.0f}% in fibroblasts, "
+                    "{:.0f}% in whole blood".format(g0, jt[g0].get("Lung", 0), jt[g0].get("Cells_Cultured_fibroblasts", 0),
+                                                     jt[g0].get("Whole_Blood", 0)), size=26)
+        D.figure(s, path(tf, "junction_testability.png"), [
+            "A junction with >= 20 reads lets RNA from that tissue show whether a variant changes splicing there",
+            "Ion-channel genes have no supported junction in any accessible tissue"],
+            note="GTEx v8 median junction reads per tissue (untargeted short-read libraries, about 50-80 million "
+                 "reads); MANE Select introns.")
+    if have(path(tf, "variant_testability.png")) and vt:
+        parts = ["{} {:.0f}% of {}".format(g, vt[g]["Lung"][0], vt[g]["Lung"][1]) for g in vt if "Lung" in vt[g]]
+        s = D.slide("Patient variants testable with airway RNA (lung, >= 20 junction reads): " + "; ".join(parts),
+                    size=26)
+        D.figure(s, path(tf, "variant_testability.png"), ["{}: swabs {:.0f}%, fibroblasts {:.0f}%, esophagus mucosa "
+                                                           "{:.0f}%, whole blood {:.0f}%".format(
+            g, vt[g].get("swab", (0, 0))[0], vt[g].get("Cells_Cultured_fibroblasts", (0, 0))[0],
+            vt[g].get("Esophagus_Mucosa", (0, 0))[0], vt[g].get("Whole_Blood", (0, 0))[0]) for g in vt],
+            note="Exonic variants: junctions flanking their exon; splice-site and intronic variants: their intron's "
+                 "junction. Swabs: median reads at the variant per swab in this pilot.")
+        summary["tissues"].append("Patient variants testable with airway RNA: " + "; ".join(parts) +
+                                  "; with blood: none")
+
+    # ---------------------------------------------------------------- 6. choosing the next tissue
+    D.divider("6  Choosing the next tissue", "Specimens weighed, hair follicles dropped, and the case for the nose")
+    gtex, mart, nasal = public_numbers(args)
+    exploration_options_slide(D, args, genes, gtex, mart, nasal)
+    if pub and have(path(pub, "public_martorella2023.png")):
+        mvv = lambda m, k: (mart.get((m, k)) or {}).get("value")  # noqa: E731
+        s = D.slide("Hair follicles keep RNA intact (mean RIN {}), but need 25-30 plucked hairs: not pursued".format(
+            mvv("mean_RIN", "Hair follicles")), size=28)
+        D.figure(s, path(pub, "public_martorella2023.png"), [
+            "Published: mean RIN {} for hair, {} for buccal swabs; {}% of OMIM genes captured".format(
+                mvv("mean_RIN", "Hair follicles"), mvv("mean_RIN", "Buccal swab"),
+                mvv("omim_capture_percent", "Hair follicles")),
+            "Measured plucked hair expresses only {:.0f}% of the brain-expressed panel genes (section 5)".format(
+                float(av.get("brain_expressed_recovered_percent_all", {}).get("Plucked hair follicles", 0))),
+            "Dropped: plucking 25-30 scalp hairs is not acceptable to our donors and impractical under 3 years"],
+            side="right", fig_w=7.6, note="Martorella M, et al. BMC Genomics. 2023;24:790.")
+    nf = args.nasal_figures
+    if nf and os.path.isdir(nf):
+        tab = read_tsv(os.path.join(nf, "nasal_literature_figures.tsv"))
+        val = {(r["measure"], r["label"]): float(r["value"]) for r in tab if numf(r["value"]) is not None}
+        it, bu = val.get(("RIN", "Inferior turbinate brush")), val.get(("RIN", "Buccal swab"))
+        if have(path(nf, "nasal_expression.png")):
+            cpm = {r["label"]: float(r["value"]) for r in tab if r["measure"] == "nasal_cpm_median"}
+            tg = [g for g in genes if g in cpm]
+            s = D.slide("Nasal brushings express " + glist("{} (median {:.0f} CPM)".format(g, cpm[g]) for g in tg)
+                        + " in all 695 samples" if tg else "Gene expression in nasal brushings", size=26)
+            D.figure(s, path(nf, "nasal_expression.png"), [
+                "OMP {:.1f} CPM: an inferior turbinate brushing holds airway epithelium, not olfactory neurons".format(
+                    cpm.get("OMP", 0)),
+                "Public short-read data (GEO GSE152004, children and young people, Sajuthi 2020)"])
+        if have(path(nf, "nasal_rin.png")):
+            s = D.slide("RNA integrity: inferior turbinate brushing RIN {:.1f}, buccal swabs {:.1f} (published)".format(
+                it, bu) if it and bu else "RNA integrity by sampling site", size=28)
+            D.figure(s, path(nf, "nasal_rin.png"), [
+                "The site matters more than the device: at the front of the nose (squamous lining) RIN is low with a "
+                "brush or a swab",
+                "A brush on the inferior turbinate, a few cm inside, reaches living airway epithelium",
+                "Flocked nasal swabs from children 0-3 years: RIN about 4.1"], side="right", fig_w=7.6)
+            summary["next"].append("Published nasal brushings keep RNA intact (RIN {:.1f}) where buccal swabs do not "
+                                   "({:.1f})".format(it, bu) if it and bu else "")
+        r_, q_ = val.get(("pct_respiratory", "Inferior turbinate brush")), val.get(("pct_squamous", "Anterior nares swab"))
+        if have(path(nf, "nasal_cells.png")):
+            s = D.slide("Inferior turbinate brushings are {:.0f}% airway epithelial cells; anterior nares swabs {:.0f}% "
+                        "squamous".format(r_, q_) if r_ and q_ else "Cells collected by each method", size=26)
+            D.figure(s, path(nf, "nasal_cells.png"), [
+                "Buccal swabs collect shed squamous cells, mostly still alive (70% viable), plus immune cells and "
+                "oral bacteria",
+                "Nasal brushings collect ciliated, secretory and basal airway cells; olfactory neurons lie higher and "
+                "are not reached"])
+        if have(path(nf, "nasal_pediatric.png")):
+            s = D.slide("Nasal sampling in children: tolerated by newborns and infants; awake brushing reported "
+                        "from 5 years", size=26)
+            D.figure(s, path(nf, "nasal_pediatric.png"),
+                     note="Outcomes differ between studies (bar colour). No study reports RIN by age; under 5 years, "
+                          "brushing was done under anaesthesia (Fawcett 2023). Sources: public_data/nasal_pediatric.tsv.")
+
+    # ---------------------------------------------------------------- 7. pilot 2
+    D.divider("7  Pilot 2 (planned): nasal swab vs nasal brush", "Same donors, kits in hand plus cytology brushes")
+    s = D.slide("Pilot 2 design: a flocked swab and a cytology brush from each donor's nose", size=28)
+    D.table(s, PILOT2["rows"], 0.4, 1.6, SW - 0.8, [1.4, 0.9, 5.5, 4.73], size=13)
+    D.bullets(s, ["Is nasal RNA more intact than the same donor's buccal swab RNA?",
+                  "Is a swab enough, or is the brush needed for intact RNA?",
+                  "Are {} and the panel detected, and are patient variants covered?".format(glist(genes)),
+                  "Same donor letters as pilot 1, so each donor's nasal and buccal results are drawn side by side"],
+              0.5, 3.4, SW - 1.0, 3.4, size=15)
+    s = D.slide("Collection steps, and decision rules set before the data", size=28)
+    D.caption(s, "Collection and extraction", 0.4, 1.45, 6.0)
+    D.bullets(s, PILOT2["steps"], 0.4, 1.95, 6.1, 5.0, size=13)
+    D.caption(s, "Decision rules", 6.8, 1.45, 6.1)
+    D.bullets(s, PILOT2["rules"], 6.8, 1.95, 6.2, 5.0, size=13)
+    D.note(s, "Sources: Chu 2016, Brewington 2018, Ulm 2016, Lai 2015, trial protocol NCT02005627; full protocol in "
+              "the Epilepsy_Nasal README", size=10)
+    summary["next"].append("Pilot 2: nasal flocked swab vs cytology brush in the same donors, decision rules set "
+                           "before the data")
+
+    # ---------------------------------------------------------------- summary and decision log
+    s = D.slide("Summary", size=32)
+    items = []
+    for key, head in (("pilot", "Pilot 1, buccal swabs"), ("integrity", "Swab RNA"), ("genes", "The genes"),
+                      ("tissues", "Public data across the panel"), ("next", "Next")):
+        lines = [x for x in summary.get(key, []) if x]
+        if lines:
+            items.append(head)
+            items += [(1, x) for x in lines]
+    D.bullets(s, items, 0.6, 1.3, SW - 1.2, 6.0, size=15)
+    decision_log_slide(D)
+    D.prs.save(args.out)
+    print("{} slides -> {}".format(len(D.prs.slides), args.out))
+
+
+def exploration_options_slide(D, args, genes, gtex, mart, nasal):
+    """the options table of exploration_slides, alone."""
+    if not gtex:
+        return
+    g0 = genes[0]
+
+    def gx(tissue, col):
+        r = gtex.get(tissue)
+        return float(r[col]) if r else None
+
+    def tissue_txt(tissue, label):
+        pc, t = gx(tissue, "percent_ge10_tpm"), gx(tissue, "{}_tpm".format(g0))
+        return "{}: {:.0f}% of panel; {} {:.1f} TPM".format(label, pc, g0, t) if pc is not None else "-"
+
+    def mv(measure, kind):
+        r = mart.get((measure, kind))
+        return r["value"] if r else None
+
+    pct = lambda label: "{:.0f}%".format(float(nasal[("percent_passing", label)])) \
+        if nasal.get(("percent_passing", label)) else "NA"  # noqa: E731
+    nas = [nasal.get(("nasal_cpm_median", g)) for g in genes]
+    nas_txt = ("Nasal brushings: " + ", ".join("{} {:.0f} CPM".format(g, float(v)) for g, v in zip(genes, nas) if v)
+               if all(nas) else "-")
+    rows = [["Specimen", "RNA integrity (published)", "Panel / gene expression", "Collection", "Decision"],
+            ["Buccal swab", "Mean RIN {}".format(mv("mean_RIN", "Buccal swab")),
+             tissue_txt("Esophagus - Mucosa", "Esophagus mucosa"), "Swab; any age", "Tested: pilot 1"],
+            ["Saliva", "Mean RIN {}; {} of libraries passed QC".format(mv("mean_RIN", "Saliva"), pct("Saliva")),
+             tissue_txt("Minor Salivary Gland", "Salivary gland"), "Spit or sponge; any age", "Dropped"],
+            ["Hair follicles", "Mean RIN {}; {}% of OMIM genes".format(mv("mean_RIN", "Hair follicles"),
+                                                                     mv("omim_capture_percent", "Hair follicles")),
+             tissue_txt("Skin - Not Sun Exposed (Suprapubic)", "Skin"), "25-30 plucked hairs", "Dropped"],
+            ["Whole blood", "PAXgene tubes; not tested here", tissue_txt("Whole Blood", "Whole blood"), "Blood draw",
+             "Kept for later"],
+            ["Skin biopsy", "Cultured cells", tissue_txt("Cells - Cultured fibroblasts", "Fibroblasts"),
+             "Punch biopsy + weeks of culture", "Kept for later"],
+            ["Urine cells", "{}% of OMIM genes".format(mv("omim_capture_percent", "Urine cell pellet")), "-",
+             "Urine; cell pellet", "Kept for later"],
+            ["Nasal epithelium", "Brush RIN {}; front-of-nose swab RIN {}".format(
+                nasal.get(("RIN", "Inferior turbinate brush"), "8.9"), nasal.get(("RIN", "Anterior nares swab"), "1.1")),
+             nas_txt, "Swab any age; brush from 5 y", "Chosen: pilot 2"]]
+    s = D.slide("Seven accessible specimens weighed on RNA integrity, gene expression and collection", size=28)
+    D.table(s, rows, 0.4, 1.45, SW - 0.8, [1.75, 3.1, 3.55, 2.35, 1.8], size=12)
+    D.note(s, "RNA integrity: Martorella 2023 (BMC Genomics); Lai 2015 (JACI). Expression: GTEx v8 median TPM in the "
+              "closest tissue (% of the 634 panel genes >= 10 TPM); nasal brushings: GEO GSE152004 (Sajuthi 2020).",
+           size=10)
+
+
+def main():
+    story(parse_args())
 
 
 if __name__ == "__main__":
