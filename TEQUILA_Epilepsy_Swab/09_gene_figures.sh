@@ -16,18 +16,28 @@
 #      interest annotated -> ${RESULTS_DIR}/figures/<GENE>/igv/
 #   5. Figures 1-2 and the paired kit comparison (scripts/pub_figures.py) -> ${RESULTS_DIR}/figures/
 #
+# GENE_SOURCE=full takes the gene reads from the full path instead (the genome-wide BAMs of 07_qc_full.sh, every read
+# aligned): the reads overlapping the gene are copied to ${FAST_DIR}/bam/<GENE>/<sample>.bam, so steps 02-05 are not
+# needed. The k-mer baiting of the fast path recovers 99.6-100% of the gene reads found this way. Isoforms then come
+# from AMALGAM full (genome-wide).
 # Light work (minutes, a few GB): LOCAL=1 runs it here instead of submitting it.
-# Usage: bash 09_gene_figures.sh
+# Usage: bash 09_gene_figures.sh          (GENE_SET=extra GENE_SOURCE=full bash 09_gene_figures.sh)
 set -euo pipefail
 
 _D="${TEQ_ANALYSIS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 source "${_D}/lib.sh"
 
+GENE_SOURCE="${GENE_SOURCE:-fast}"
 preflight() {
-  for gene in "${TARGET_GENES[@]}"; do
-    compgen -G "${FAST_DIR}/bam/${gene}/*.bam" >/dev/null || {
-      echo "no gene BAMs in ${FAST_DIR}/bam/${gene}: run 03_bait_and_align.sh first" >&2; exit 1; }
-  done
+  if [[ "${GENE_SOURCE}" == "full" ]]; then
+    compgen -G "${QC_DIR}/bam/*.bam" >/dev/null || { echo "no ${QC_DIR}/bam/*.bam: run 07_qc_full.sh first" >&2; exit 1; }
+  else
+    for gene in "${TARGET_GENES[@]}"; do
+      compgen -G "${FAST_DIR}/bam/${gene}/*.bam" >/dev/null || {
+        echo "no gene BAMs in ${FAST_DIR}/bam/${gene}: run 03_bait_and_align.sh first (or GENE_SOURCE=full)" >&2
+        exit 1; }
+    done
+  fi
   [[ -s "${QC_DIR}/fastq_read_counts.tsv" ]] || { echo "missing ${QC_DIR}/fastq_read_counts.tsv (step 01)" >&2; exit 1; }
 }
 if [[ -z "${AFTER:-}" ]]; then preflight; fi
@@ -54,6 +64,16 @@ for gene in "${TARGET_GENES[@]}"; do
   mkdir -p "${FIG}/${gene}/igv"
   awk -F'\t' -v c="${chrom}" -v s="${start}" -v e="${end}" '$1 == c && $4 <= e + 100000 && $5 >= s - 100000' \
     "${GTF}" > "${FIG}/${gene}/${gene}_locus.gtf"
+  if [[ "${GENE_SOURCE}" == "full" ]]; then   # gene reads from the genome-wide BAMs of the full path
+    mkdir -p "${FAST_DIR}/bam/${gene}"
+    for sample in $(sample_ids); do
+      src="${QC_DIR}/bam/${sample}.bam"
+      [[ -s "${src}" ]] || continue
+      samtools view -b -o "${FAST_DIR}/bam/${gene}/${sample}.bam" "${src}" "${chrom}:${start}-${end}"
+      samtools index "${FAST_DIR}/bam/${gene}/${sample}.bam"
+    done
+    echo "[figures] ${gene}: reads of ${chrom}:${start}-${end} taken from the full path" >&2
+  fi
   for sample in $(sample_ids); do
     bam="${FAST_DIR}/bam/${gene}/${sample}.bam"
     [[ -s "${bam}" ]] || continue

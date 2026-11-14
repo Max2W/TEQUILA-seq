@@ -289,19 +289,19 @@ Two parts:
      `results_extra/` and `fast_extra/`, so the STXBP1 and SYNGAP1 results are not touched.
    - **Reused data:** the merged fastq files and the full-path BAMs are reused, so there is no step 01 and no step 07.
 
-Run the fast path for the five genes (a chain of jobs):
+The full path already holds every read aligned to the genome, and AMALGAM full quantified isoforms genome-wide. So
+the five genes do not need the fast path: step 09 with `GENE_SOURCE=full` copies each gene's reads from the full-path
+BAMs, and the isoform figures use AMALGAM full. The fast path would add only a second isoform method (ESPRESSO). Its
+k-mer baiting recovered 99.6-100% of the gene reads of the full path for STXBP1 and SYNGAP1.
+
+Draw the five genes' figures from the full path (one job, minutes):
 
 ```bash
 cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
-GENE_SET=extra SKIP_FASTQ=1 bash run_fast_path.sh
+GENE_SET=extra GENE_SOURCE=full bash 09_gene_figures.sh
 ```
 
-When `squeue -u $USER` shows no more jobs, draw their figures and their own deck:
-
-```bash
-cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
-GENE_SET=extra bash 09_gene_figures.sh
-```
+When `squeue -u $USER` shows the job has finished, build their own deck:
 
 ```bash
 cd /home/wangf3/feng/projects/TEQUILA_Epilepsy_Swab/TEQUILA-seq/TEQUILA_Epilepsy_Swab
