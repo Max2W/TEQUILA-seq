@@ -329,6 +329,12 @@ bash 10_slides.sh
   comes from the density of reads lying wholly inside the gene's introns.
 - **Cell mix against integrity** (`scripts/cellmix_integrity.py`): squamous, salivary and immune marker levels per
   swab, against transcript coverage and RIN. This is exploratory.
+- **Gene-body coverage** (`scripts/genebody_figure.py`): for each gene, the fraction of reads covering each position
+  of the canonical transcript, 5' to 3', one line per swab. This is the deck's fragmentation figure.
+- **Variant types** (`scripts/variant_coverage.py`, `variant_types.png`): the patient variants per gene by type and
+  pathogenicity, and their positions along the transcript. It stays on scratch with the other variant outputs.
+- **Kit comparison and PCA** (`scripts/expression_qc.py`, step 11) use spliced reads only, so genomic DNA does not
+  favour one kit. The deck states how much of PC1 donor and kit explain (R²) against the chance level.
 
 ### Folder layout on scratch
 

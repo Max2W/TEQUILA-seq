@@ -118,8 +118,8 @@ def gene_reads_figure(args, sheet, genes):
     order = [r["sample_id"] for c in conds for r in sheet if r["condition"] == c]
     colors = {c: k for c, k in zip(conds, ["#3188BD", "#EC7B02", "#57B45B", "#C9A0DC"])}
     cond_of = {r["sample_id"]: r["condition"] for r in sheet}
-    fig, axes = plt.subplots(1, len(genes), figsize=(4.4 * len(genes), 3.3), squeeze=False)
-    fig.subplots_adjust(left=0.08, right=0.95, top=0.88, bottom=0.24, wspace=0.3)
+    fig, axes = plt.subplots(1, len(genes), figsize=(4.4 * len(genes), 3.6), squeeze=False)
+    fig.subplots_adjust(left=0.08, right=0.97, top=0.8, bottom=0.24, wspace=0.3)
     for ax, g in zip(axes[0], genes):
         v = [reads.get((g, s), 0) for s in order]
         ax.bar(np.arange(len(order)), v, width=0.8, color=[colors[cond_of[s]] for s in order])
@@ -130,8 +130,8 @@ def gene_reads_figure(args, sheet, genes):
         ax.set_title(g, fontstyle="italic", fontsize=11)
         ax.set_ylim(0, max(v + [1]) * 1.12)
         classic(ax)
-    axes[0][-1].legend([Rectangle((0, 0), 1, 1, color=colors[c]) for c in conds], conds, frameon=False, fontsize=9,
-                       loc="upper right")
+    fig.legend([Rectangle((0, 0), 1, 1, color=colors[c]) for c in conds], conds, frameon=False, fontsize=9,
+               loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=len(conds))
     save(fig, os.path.join(args.outdir, "gene_reads"))
 
 
@@ -400,7 +400,9 @@ def read_junctions(bam_path, chrom, lo, hi):
     return reads
 
 
-def find_events(canon, ann_exons, gencode_exons, ann_introns, pooled):
+def find_events(canon, ann_exons, gencode_exons, ann_introns, pooled, reads=()):
+    """reads: junction sets of all reads; a cassette exon not in GENCODE needs >= 2 reads that hold both of its
+    junctions (otherwise two unrelated junctions could fake an exon)."""
     exons = canon["exons"]
     introns = [(exons[i][1] + 1, exons[i + 1][0] - 1) for i in range(len(exons) - 1)]
     events = []
@@ -411,6 +413,8 @@ def find_events(canon, ann_exons, gencode_exons, ann_introns, pooled):
         starts = {b for (a, b), n in pooled.items() if a == s and b < e and n >= 2}
         ends = {a for (a, b), n in pooled.items() if b == e and a > s and n >= 2}
         cands |= {(j1 + 1, j2 - 1) for j1 in starts for j2 in ends if j1 + 1 <= j2 - 1}
+        cands = {(xs, xe) for xs, xe in cands if (xs, xe) in gencode_exons or
+                 sum(1 for js in reads if (s, xs - 1) in js and (xe + 1, e) in js) >= 2}
         for xs, xe in sorted(cands):
             events.append({"type": "Cassette exon", "intron": (s, e), "up": up, "down": down, "alt": (xs, xe),
                            "inc": [(s, xs - 1), (xe + 1, e)], "skip": [(s, e)],
@@ -433,6 +437,40 @@ def find_events(canon, ann_exons, gencode_exons, ann_introns, pooled):
     return events
 
 
+def event_exons(ev, canon_exons):
+    """exons of the alternative isoform: canonical exons with the cassette exon added, or with the exon edge moved."""
+    ex = [list(x) for x in canon_exons]
+    if ev["type"] == "Cassette exon":
+        return sorted([tuple(x) for x in ex] + [ev["alt"]])
+    (a, b), (s, e) = ev["alt"], ev["intron"]
+    for x in ex:
+        if a == s and x[0] == e + 1:
+            x[0] = b + 1
+        if b == e and x[1] == s - 1:
+            x[1] = a - 1
+    return sorted(tuple(x) for x in ex)
+
+
+def event_effect(ev, canon, fasta):
+    """length change, reading frame and ORF category of the alternative isoform (from the canonical start codon)."""
+    cds = canon["cds"]
+    if not cds:
+        return {"delta_nt": "", "frame": "non-coding", "orf": "", "cds": []}
+    start = cds[0][0] if canon["strand"] == "+" else cds[-1][1]
+    alt = event_exons(ev, canon["exons"])
+    delta = sum(e - s + 1 for s, e in alt) - sum(e - s + 1 for s, e in canon["exons"])
+    lo, hi = cds[0][0], cds[-1][1]
+    a, b = ev["alt"]
+    if b < lo or a > hi:
+        return {"delta_nt": delta, "frame": "UTR", "orf": "canonical ORF unchanged", "cds": cds}
+    cat, alt_cds = orf(fasta, canon["chrom"], alt, canon["strand"], start)
+    frame = "in frame ({:+d} aa)".format(delta // 3) if delta % 3 == 0 else "frameshift"
+    nice = {"Premature termination codon": "premature stop codon: predicted NMD",
+            "Protein coding": "stop in the last exon: no NMD predicted",
+            "Incomplete ORF": "no stop codon found"}.get(cat, cat)
+    return {"delta_nt": delta, "frame": frame, "orf": nice, "cds": alt_cds}
+
+
 def event_levels(ev, reads_by_sample):
     out = {}
     inc, skip = set(ev["inc"]), set(ev["skip"])
@@ -450,7 +488,7 @@ def event_id(gene, ev, chrom):
 
 
 def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chrom, strand, out_path, kit_colors,
-                    canon_exons):
+                    canon_exons, canon=None, effect=None):
     samples_all = [r["sample_id"] for r in sheet]
     meta = {r["sample_id"]: r for r in sheet}
     up = (max(ev["up"][0], ev["up"][1] - 249), ev["up"][1])
@@ -548,31 +586,50 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
                                        color="#C00000", linewidth=0.6, linestyle="--"))
     axo.text(0, -1.25, "{} canonical transcript with the event in red (introns shortened)".format(gene),
              fontsize=7, color="#444444", transform=axo.transData, va="top")
-    # bar: level per sample, sorted
-    have = sorted([s for s in samples_all if psi[s] is not None], key=lambda s: -psi[s])
-    low = [s for s in samples_all if psi[s] is None]
-    order = have + low
-    ax = fig.add_axes([6.5 / W, 1.4 / H, 5.5 / W, 2.6 / H])
+    # right, top: the two isoform structures (whole transcript, introns shortened)
+    is_ce = ev["type"] == "Cassette exon"
+    alt_exons = event_exons(ev, canon_exons)
+    rows = [("Canonical (MANE)", list(canon_exons), (canon or {}).get("cds", []), "#708090"),
+            ("With the {}".format("exon" if is_ce else "alternative site"), alt_exons,
+             (effect or {}).get("cds", []), "#C00000")]
+    axs = fig.add_axes([7.0 / W, 4.05 / H, 5.0 / W, 1.0 / H])
+    draw_structures(axs, rows, full, "above", 8)
+    axs.annotate("", xy=(1.0 if strand == "+" else 0.0, 1.65), xytext=(0.0 if strand == "+" else 1.0, 1.65),
+                 arrowprops=dict(arrowstyle="-|>", color="#555555", lw=0.8), annotation_clip=False)
+    axs.text(0.5, 1.95, "transcription 5' to 3' ({} strand; genomic coordinates left to right)".format(strand),
+             ha="center", va="center", fontsize=7, color="#555555")
+    xr = float(full(ev["site"]))
+    axs.plot([xr, xr], [-0.55, 1.45], color="#C00000", lw=0.6, ls=":")
+    if effect:
+        fig.text(9.5 / W, 3.78 / H, "{}: {} nt; {}; {}".format(
+            "Exon" if is_ce else "Change", abs(effect["delta_nt"]) if effect["delta_nt"] != "" else "?",
+            effect["frame"], effect["orf"]), ha="center", va="center", fontsize=8.5, color="#C00000")
+    # right, bottom: proportion of reads per swab with the alternative or the canonical splicing
+    order = [r["sample_id"] for c in ordered(r["condition"] for r in sheet) for r in sheet if r["condition"] == c]
+    ax = fig.add_axes([7.0 / W, 1.15 / H, 5.0 / W, 2.2 / H])
     x = np.arange(len(order))
-    ax.bar(x[:len(have)], [psi[s] for s in have], width=0.8, color=SLATE)
-    for i, s in enumerate(order):
-        n = sum(levels[s])
-        if psi[s] is None:
-            ax.text(i, 2, "n = {}".format(n), rotation=90, ha="center", va="bottom", fontsize=7, color="#555555")
+    for i, smp in enumerate(order):
+        a_, k_ = levels[smp]
+        n = a_ + k_
+        if n >= MIN_DENOM:
+            pa = a_ / n * 100
+            ax.bar(i, pa, width=0.8, color="#C00000")
+            ax.bar(i, 100 - pa, bottom=pa, width=0.8, color="#B0BEC5")
+            ax.text(i, 101, "n = {}".format(n), ha="center", va="bottom", fontsize=6.5, color="#555555")
         else:
-            ax.text(i, psi[s] + 2, "n = {}".format(n), ha="center", va="bottom", fontsize=6.5, color="#555555")
-    ax.set_ylim(-3, 105)
+            ax.bar(i, 100, width=0.8, color="#F0F0F0")
+            ax.text(i, 50, "{} reads".format(n), rotation=90, ha="center", va="center", fontsize=7, color="#555555")
+    ax.set_ylim(0, 112)
     ax.set_yticks([0, 25, 50, 75, 100])
     ax.set_xlim(-0.6, len(order) - 0.4)
-    rotated_labels(ax, [label(s) for s in order])
+    ax.set_ylabel("Reads (%)")
+    rotated_labels(ax, [label(smp) for smp in order])
     classic(ax)
-    is_ce = ev["type"] == "Cassette exon"
-    ax.set_ylabel("Exon inclusion level (%)" if is_ce else "{} usage (%)".format(ev["type"]))
-    what = "{} {}".format(gene, "cassette exon" if is_ce else ev["type"].lower())
-    fig.text(9.25 / W, 4.75 / H, "{} levels for {} were calculated directly\nfrom the long-read alignments "
-             "(n = reads in the denominator)*".format("Inclusion" if is_ce else "Usage", what),
-             ha="center", va="center", fontsize=9,
-             bbox=dict(boxstyle="square,pad=0.4", facecolor="white", edgecolor="black", linewidth=0.8))
+    ax.legend([Rectangle((0, 0), 1, 1, color="#C00000"), Rectangle((0, 0), 1, 1, color="#B0BEC5")],
+              ["exon included" if is_ce else "alternative site", "exon skipped" if is_ce else "canonical site"],
+              frameon=False, fontsize=8, loc="lower center", bbox_to_anchor=(0.5, 1.07), ncol=2)
+    psi = {smp: (levels[smp][0] / sum(levels[smp]) * 100 if sum(levels[smp]) >= MIN_DENOM else None)
+           for smp in samples_all}
     save(fig, out_path)
     return psi, panels
 
@@ -631,7 +688,8 @@ def main():
             reads_by_sample[s] = read_junctions(bam, chrom, lo, hi) if os.path.exists(bam) else []
             junc_by_sample[s] = Counter(j for js in reads_by_sample[s] for j in js)
         pooled = sum(junc_by_sample.values(), Counter())
-        events = find_events(canon, ann_exons, gencode_exons, ann_introns, pooled)
+        all_reads = [js for v in reads_by_sample.values() for js in v]
+        events = find_events(canon, ann_exons, gencode_exons, ann_introns, pooled, all_reads)
         rows, ranked = [], []
         for ev in events:
             lv = event_levels(ev, reads_by_sample)
@@ -651,7 +709,8 @@ def main():
             for r in rows:
                 fh.write("\t".join(map(str, r)) + "\n")
         with open(os.path.join(args.outdir, "{}_events_drawn.tsv".format(gene)), "w") as fh:
-            fh.write("rank\tevent_id\ttype\tin_gencode\tpooled_alt_reads\tpooled_denominator\tfigure\n")
+            fh.write("rank\tevent_id\ttype\tin_gencode\tpooled_alt_reads\tpooled_denominator\tfigure\tdelta_nt\t"
+                     "frame\torf_effect\n")
             for k, (alt_pool, den_pool, ev, lv) in enumerate(ranked[:args.max_events], 1):
                 for s in samples_all:
                     if s not in cov_by_sample:
@@ -659,10 +718,12 @@ def main():
                         a, _ = coverage(bam, chrom, lo, hi) if os.path.exists(bam) else (np.zeros(hi - lo + 1), 0)
                         cov_by_sample[s], cov_by_sample[s + "_lo"] = a, lo
                 name = "{}_event{}".format(gene, k)
+                eff = event_effect(ev, canon, fasta)
                 sashimi_and_bar(gene, ev, lv, sheet, cov_by_sample, junc_by_sample, chrom, strand,
-                                os.path.join(args.outdir, name), KIT_SASHIMI, canon["exons"])
-                fh.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(k, ev["id"], ev["type"], ev["annotated"], alt_pool,
-                                                               den_pool, name))
+                                os.path.join(args.outdir, name), KIT_SASHIMI, canon["exons"], canon, eff)
+                fh.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
+                    k, ev["id"], ev["type"], ev["annotated"], alt_pool, den_pool, name, eff["delta_nt"],
+                    eff["frame"], eff["orf"]))
         print("{}: {} splicing events found, {} with >= {} pooled reads, {} drawn".format(
             gene, len(events), len(ranked), MIN_DENOM, min(len(ranked), args.max_events)))
 

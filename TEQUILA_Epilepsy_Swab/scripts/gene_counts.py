@@ -7,6 +7,8 @@ For every sample BAM (primary alignments only):
   * a read is on target when its aligned span overlaps the gene body of any probe-panel gene
 Outputs (--outdir):
   gene_counts.tsv       gene, gene_type, in_panel, one read-count column per sample (plus intergenic / unmapped rows)
+  gene_counts_spliced.tsv  the same for spliced reads only (an intron >= 30 nt in the alignment): certainly mRNA,
+                        free of the genomic-DNA-like background of swab libraries
   panel_on_target.tsv   sample_id, reads, mapped, unmapped, panel_reads, panel_rate, reads on each --report-genes gene
   panel_genes_missing.txt  panel symbols not found as gene names in the GTF
 """
@@ -87,7 +89,7 @@ def panel_hit(chrom, start, end):
 
 def count(job):
     sample, path = job
-    counts, report = Counter(), Counter()
+    counts, report, spliced = Counter(), Counter(), Counter()
     reads = mapped = on_panel = 0
     with pysam.AlignmentFile(path) as bam:
         for r in bam.fetch(until_eof=True):
@@ -98,13 +100,16 @@ def count(job):
                 continue
             mapped += 1
             s, e = r.reference_start, r.reference_end
-            counts[gene_at(r.reference_name, (s + e) // 2)] += 1
+            gname = gene_at(r.reference_name, (s + e) // 2)
+            counts[gname] += 1
+            if any(op == 3 and ln >= 30 for op, ln in (r.cigartuples or ())):
+                spliced[gname] += 1
             hits = panel_hit(r.reference_name, s, e)
             if hits:
                 on_panel += 1
                 for g in hits & _REPORT:
                     report[g] += 1
-    return sample, reads, mapped, on_panel, counts, report
+    return sample, reads, mapped, on_panel, counts, report, spliced
 
 
 def main():
@@ -129,18 +134,24 @@ def main():
     gtype = {}
     for _c, _s, _e, name, t in genes:
         gtype.setdefault(name, t)
-    allg = sorted(set().union(*(results[s][4] for s in order)))
+    allg = sorted(set().union(*(results[s][4] for s in order)) | (set(panel) & names))
     with open(os.path.join(args.outdir, "gene_counts.tsv"), "w") as fh:
         fh.write("gene\tgene_type\tin_panel\t" + "\t".join(order) + "\n")
         for g in allg:
             fh.write("{}\t{}\t{}\t{}\n".format(g, gtype.get(g, "NA"), g in set(panel),
                                                "\t".join(str(results[s][4].get(g, 0)) for s in order)))
         fh.write("unmapped\tNA\tFalse\t" + "\t".join(str(results[s][1] - results[s][2]) for s in order) + "\n")
+    alls = sorted(set().union(*(results[s][6] for s in order)) | set(panel))
+    with open(os.path.join(args.outdir, "gene_counts_spliced.tsv"), "w") as fh:
+        fh.write("gene\tgene_type\tin_panel\t" + "\t".join(order) + "\n")
+        for g in alls:
+            fh.write("{}\t{}\t{}\t{}\n".format(g, gtype.get(g, "NA"), g in set(panel),
+                                               "\t".join(str(results[s][6].get(g, 0)) for s in order)))
     with open(os.path.join(args.outdir, "panel_on_target.tsv"), "w") as fh:
         fh.write("sample_id\treads\tmapped\tunmapped\tintergenic\tpanel_reads\tpanel_rate\t" +
                  "\t".join("{}_reads".format(g) for g in report) + "\n")
         for s in order:
-            _, reads, mapped, on_panel, counts, rep = results[s]
+            _, reads, mapped, on_panel, counts, rep, _sp = results[s]
             fh.write("{}\t{}\t{}\t{}\t{}\t{}\t{:.6f}\t{}\n".format(
                 s, reads, mapped, reads - mapped, counts.get("intergenic", 0), on_panel,
                 on_panel / reads if reads else 0, "\t".join(str(rep.get(g, 0)) for g in report)))

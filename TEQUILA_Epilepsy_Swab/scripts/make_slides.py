@@ -39,6 +39,9 @@ BACKGROUND = {
                   "encephalopathies and related neurodevelopmental disorders"],
         "refs": "Saitsu H, et al. Nature Genetics. 2008;40:782-788.  Suri M, et al. Molecular Genetics and Genomic "
                 "Medicine. 2017;5(5):495-507.",
+        "figure": "STXBP1_function.jpg",
+        "figure_ref": "Figure: Wang S, Ma C. FEBS Open Bio. 2022;12:1939-1957, Fig. 2 (Munc18-1 guides SNARE complex "
+                      "assembly), CC BY 4.0.",
     },
     "SYNGAP1": {
         "title": "Developmental and epileptic encephalopathy due to SYNGAP1 haploinsufficiency",
@@ -50,6 +53,9 @@ BACKGROUND = {
                   "encephalopathies"],
         "refs": "Hamdan FF, et al. N Engl J Med. 2009;360:599-605.  Carvill GL, et al. Nature Genetics. "
                 "2013;45:825-830.  Weldon M, et al. J Neurodev Disord. 2018;10(1):6.",
+        "figure": "SYNGAP1_function.jpg",
+        "figure_ref": "Figure: Jeyabalan N, Clement JP. Front Cell Neurosci. 2016;10:32, Fig. 3 (SYNGAP1 in synaptic "
+                      "signalling), CC BY 4.0.",
     },
 }
 
@@ -137,8 +143,12 @@ def parse_args():
     p.add_argument("--extra-results", help="results_extra/ of a GENE_SET=extra run")
     p.add_argument("--exploration-figures", help="figures of scripts/exploration_figures.py (roadmap, tissues)")
     p.add_argument("--nasal-figures", help="figures of scripts/nasal_literature_figures.py (next specimen)")
+    p.add_argument("--genebody-figures", help="figures of scripts/genebody_figure.py")
     p.add_argument("--out", required=True)
     return p.parse_args()
+
+
+LITERATURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "public_data", "literature")
 
 
 def panel_size():
@@ -1579,27 +1589,22 @@ def story(args):
                   "Kits compared within donor (paired, n = {})".format(len(donors))], 8.3, 1.7, 4.6, 4.5, size=16)
     ff = args.full_figures
     fpv = tsv_measures(path(ff, "full_path_figures.tsv"), key="sample_id") if ff else {}
-    if have(path(deck_dir, "reads_per_sample.png")):
-        per = [total[x] / 1e6 for x in samples]
-        mr = [float(v) for v in fpv.get("mapping_rate_percent", {}).values()]
-        ml = [float(v) for v in fpv.get("median_read_length", {}).values()]
-        rec = {}
-        for r in read_tsv(path(ff, "full_path_figures.tsv")) if ff else []:
-            if r["measure"] == "kept_full_vs_fast":
-                a_, b_ = map(int, r["value"].split("/"))
-                if a_:
-                    rec.setdefault(r["gene"], []).append(b_ / a_ * 100)
-        s = D.slide("{:.1f} M reads from {} swabs; {} map to the genome".format(
-            sum(per), len(samples), fmt_range(mr, 0, True)) if mr else
-            "Targeted long-read RNA sequencing of the swabs", size=28)
-        items = ["Multiplexed TEQUILA-seq library ({}-gene probe panel), ONT SQK-NBD114.24; {}: {} M reads per "
-                 "swab".format(panel_size(), args.run_label, fmt_range(per, 1))]
-        if ml:
-            items.append("Median read length {} nt".format(fmt_range(ml)))
-        if rec:
-            items.append("Gene reads by k-mer baiting (fast path) match full alignment: " + "; ".join(
-                "{} {}".format(g, fmt_range(rec[g], 0, True)) for g in genes if g in rec) + " recovered")
-        D.figure(s, path(deck_dir, "reads_per_sample.png"), items)
+    per = [total[x] / 1e6 for x in samples]
+    mr = [float(v) for v in fpv.get("mapping_rate_percent", {}).values()]
+    lq = {k: [float(x) for x in v.split(",")] for k, v in fpv.get("read_length_quantiles", {}).items()}
+    ml = [q[2] for q in lq.values()] or [float(v) for v in fpv.get("median_read_length", {}).values()]
+    seq_fig = path(ff, "capture_qc.png") if have(path(ff, "capture_qc.png")) else path(deck_dir, "reads_per_sample.png")
+    if have(seq_fig):
+        s = D.slide("{:.1f} M reads from {} swabs; {} map to the genome; median read length {} nt".format(
+            sum(per), len(samples), fmt_range(mr, 0, True), fmt_range(ml)) if mr and ml else
+            "Targeted long-read RNA sequencing of the swabs", size=26)
+        items = ["Multiplexed TEQUILA-seq library ({}-gene probe panel), ONT SQK-NBD114.24; {} M reads per "
+                 "swab".format(panel_size(), fmt_range(per, 1))]
+        if lq:
+            items.append("Read length per swab: interquartile range {} to {} nt; 95% of reads shorter than {} nt"
+                         .format(fmt_range([q[1] for q in lq.values()]), fmt_range([q[3] for q in lq.values()]),
+                                 fmt_range([q[4] for q in lq.values()])))
+        D.figure(s, seq_fig, items)
     exf = args.expression_figures
     exv = defaultdict(dict)
     for r in read_tsv(path(exf, "expression_qc.tsv")) if exf else []:
@@ -1619,12 +1624,84 @@ def story(args):
     if have(path(exf, "pca.png")):
         sx = read_tsv(path(args.sex_figures, "sex_check.tsv")) if args.sex_figures else []
         agree = {r["donor"]: r["donor_swabs_agree"] == "True" for r in sx}
-        s = D.slide("Samples cluster by {} in gene expression".format(pca_grouping(exv)))
-        items = ["PCA of log2(CPM + 1) of all genes; all reads aligned (full path)"]
+        r2 = {k: float(v) for k, v in exv.get("pca_r2", {}).items()}
+        var = {k: float(v) for k, v in exv.get("pca_var", {}).items()}
+        rd = r2.get("all|PC1|donor")
+        rk = r2.get("all|PC1|kit")
+        # chance level of R2 for g groups among n swabs: (g - 1) / (n - 1)
+        chance_d, chance_k = (len(donors) - 1) / (len(samples) - 1), (len(kits) - 1) / (len(samples) - 1)
+        if rd is None:
+            title = "Gene expression of the swabs (PCA)"
+        elif rd >= 0.8 and rd > rk:
+            title = "Swabs group by donor along PC1 (R\u00b2 {:.2f})".format(rd)
+        elif rk >= 0.5 and rk > rd:
+            title = "Swabs separate by kit along PC1 (R\u00b2 {:.2f})".format(rk)
+        else:
+            title = "Swabs do not group clearly by donor or kit in gene expression"
+        s = D.slide(title, size=28)
+        used = (exv.get("reads_used", {}).get("all") or "").replace("_", " ")
+        items = ["PCA of log2(CPM + 1) per gene{}".format(
+            ", spliced reads only (certainly RNA, not DNA)" if "splic" in used else "")]
+        if rd is not None:
+            items.append("Share of PC1 ({:.0f}% of variance) explained by donor: R\u00b2 {:.2f} (chance level {:.2f}); "
+                         "by kit: {:.2f} (chance {:.2f})".format(var.get("all|PC1", 0), rd, chance_d, rk, chance_k))
+            if "all|PC2|donor" in r2:
+                items.append("PC2 ({:.0f}%): donor R\u00b2 {:.2f}, kit {:.2f}".format(
+                    var.get("all|PC2", 0), r2["all|PC2|donor"], r2.get("all|PC2|kit", 0)))
         if agree:
             items.append("Sample identity: sex-marker expression (XIST, Y-linked genes) agrees between the two swabs "
                          "of {} of {} donors".format(sum(agree.values()), len(agree)))
-        D.figure(s, path(exf, "pca.png"), items)
+        D.figure(s, path(exf, "pca.png"), items, size=13)
+    if have(path(exf, "kit_scatter.png")) and len(kits) == 2:
+        sid = {(r["donor"], r["condition"]): r["sample_id"] for r in sheet}
+        det = {k: int(v) for k, v in exv.get("panel_genes_detected", {}).items()}
+        tcpm = {tuple(k.split("|")): float(v) for k, v in exv.get("target_cpm", {}).items()}
+        kr = {k: float(v) for k, v in exv.get("kit_pearson_panel", {}).items()}
+        k0, k1 = kits
+        pairs = [d for d in donors if (d, k0) in sid and (d, k1) in sid]
+        more = [d for d in pairs if det.get(sid[(d, k1)], 0) > det.get(sid[(d, k0)], 0)]
+        n0 = [det[sid[(d, k0)]] for d in pairs if sid[(d, k0)] in det]
+        n1 = [det[sid[(d, k1)]] for d in pairs if sid[(d, k1)] in det]
+        if n0 and n1:
+            if len(more) == len(pairs):
+                lead = "{} detects more panel genes than {} in all {} donors".format(k1, k0, len(pairs))
+            elif not more and all(det[sid[(d, k0)]] > det[sid[(d, k1)]] for d in pairs):
+                lead = "{} detects more panel genes than {} in all {} donors".format(k0, k1, len(pairs))
+            else:
+                lead = "{} and {} detect similar numbers of panel genes".format(k0, k1)
+            title = "{} ({} {}, {} {} genes with >= 5 spliced reads)".format(lead, k1, fmt_range(n1), k0,
+                                                                              fmt_range(n0))
+        else:
+            title = "Panel gene expression, {} against {}, per donor".format(k0, k1)
+        s = D.slide(title, size=26)
+        items = []
+        for g in genes:
+            up = [d for d in pairs if tcpm.get((g, sid[(d, k1)]), 0) > tcpm.get((g, sid[(d, k0)]), 0)]
+            v0 = [tcpm[(g, sid[(d, k0)])] for d in pairs if (g, sid[(d, k0)]) in tcpm]
+            v1 = [tcpm[(g, sid[(d, k1)])] for d in pairs if (g, sid[(d, k1)]) in tcpm]
+            if v0 and v1:
+                items.append("{}: {} {} CPM, {} {} CPM; higher with {} in {} of {} donors".format(
+                    g, k1, fmt_range(v1, 0), k0, fmt_range(v0, 0), k1, len(up), len(pairs)))
+        if kr:
+            lo = min(kr, key=kr.get)
+            rest = [v for d, v in kr.items() if d != lo]
+            line = "Donor {} correlates least between kits (r {:.2f}; other donors {})".format(
+                lo, kr[lo], fmt_range(rest, 2))
+            comp = tsv_measures(path(args.composition_figures, "composition_figures.tsv"), key="sample_id") \
+                if args.composition_figures else {}
+            sp = {k: numf(v) for k, v in comp.get("summary_exonic_spliced", {}).items() if numf(v) is not None}
+            if sp:
+                low = min(sp, key=sp.get)
+                if low in (sid.get((lo, k0)), sid.get((lo, k1))):
+                    line += ": its {} swab has the least spliced RNA among the off-panel reads ({:.1f}%, others "\
+                            "{}), i.e. the most DNA-like library".format(
+                                low.split("_")[0], sp[low], fmt_range([v for k, v in sp.items() if k != low], 1, True))
+            items.append(line)
+        D.figure(s, path(exf, "kit_scatter.png"), items, size=13,
+                 note="Counts of spliced reads (an intron >= 30 nt), so genomic DNA does not inflate a kit; genes "
+                      "detected = panel genes with >= 5 spliced reads; CPM per million spliced gene reads.")
+        if n0 and n1:
+            summary["pilot"].append(title)
 
     # ---------------------------------------------------------------- 3. integrity and composition
     D.divider("3  How intact is swab RNA, and what are the reads made of?",
@@ -1644,7 +1721,9 @@ def story(args):
         D.figure(s, path(rf, "rin_integrity.png"), items)
         summary["integrity"].append("RIN {} (mean {:.1f}), in line with published buccal swabs".format(
             fmt_range(list(rin.values()), 1), sum(rin.values()) / len(rin)))
-    if have(path(fig, "figure2.png")):
+    gb = path(args.genebody_figures, "genebody.png") if args.genebody_figures else ""
+    frag_fig = gb if have(gb) else path(fig, "figure2.png")
+    if have(frag_fig):
         fl = {g: int(sum(per_donor("full_length_reads", g))) for g in genes if per_donor("full_length_reads", g)}
         s = D.slide("Swab RNA is fragmented: " + ", ".join("{:,} full-length {} reads".format(fl[g], g) for g in fl) +
                     " in total" if fl else "Fragmentation of {} transcripts".format(glist(genes)))
@@ -1652,7 +1731,12 @@ def story(args):
             g, fmt_range([v * 100 for v in per_donor("median_transcript_coverage", g)], 0, True))
             for g in genes if per_donor("median_transcript_coverage", g)]
         items.append("Full length = the read reaches the first and the last exon of the MANE transcript")
-        D.figure(s, path(fig, "figure2.png"), items, side="right", fig_w=8.4)
+        items.append("With oligo(dT)-primed cDNA a broken RNA gives a read from the 3' end up to the break, so "
+                     "coverage falls towards the 5' end")
+        if frag_fig == gb:
+            D.figure(s, frag_fig, items, size=13)
+        else:
+            D.figure(s, frag_fig, items, side="right", fig_w=8.4)
         if fl:
             summary["integrity"].append("Fragmented: " + ", ".join("{:,} full-length {} reads".format(fl[g], g)
                                                                    for g in fl) + " across all swabs")
@@ -1735,8 +1819,15 @@ def story(args):
             note="Truty R, et al. Epilepsia Open. 2019;4:397-408.  Symonds JD, et al. Brain. 2019;142:2303-2318.")
     for g in genes:
         bg = BACKGROUND.get(g)
-        if bg:
-            s = D.slide(bg["title"])
+        if not bg:
+            continue
+        s = D.slide(bg["title"], size=28)
+        lit = os.path.join(LITERATURE, bg.get("figure", ""))
+        if bg.get("figure") and have(lit):
+            D.picture(s, lit, 0.3, 1.45, 6.4, 5.1)
+            D.bullets(s, bg["left"] + bg["right"], 6.9, 1.5, 6.1, 5.1, size=15)
+            D.note(s, bg["refs"] + "  " + bg["figure_ref"], size=10)
+        else:
             model = path(deck_dir, "{}_gene_model.png".format(g))
             if have(model):
                 D.picture(s, model, 0.4, 1.5, 6.2, 1.6)
@@ -1762,28 +1853,50 @@ def story(args):
                                 for g in genes)))
     crit = ("Only transcripts with an isoform fraction >= 5% (minimum of 20 reads in the denominator) and >= 3 reads "
             "in at least one sample")
+
+    def cpm_figure(g, method):
+        for kind in ("full", "fast"):
+            q = path(fig, g, "{}_{}_{}_isoform_abundance.png".format(g, method, kind))
+            if have(q):
+                return q
+        return ""
+
     for g in genes:
         q = path(fig, g, "{}_coverage_lines.png".format(g))
         if have(q):
             s = D.slide("Read coverage along {} in each swab".format(g))
             D.figure(s, q, note="Gene reads summed per position; introns shortened. Coverage adds up short reads and "
                                 "does not show fragmentation by itself.")
+        esp, ama = cpm_figure(g, "ESPRESSO"), cpm_figure(g, "AMALGAM")
+        if esp or ama:
+            s = D.slide("{} isoform abundance (CPM): ESPRESSO and AMALGAM".format(g), size=28)
+            both = [(lab, q) for lab, q in (("ESPRESSO", esp), ("AMALGAM", ama)) if q]
+            w = (SW - 0.6) / len(both)
+            for i, (lab, q) in enumerate(both):
+                D.caption(s, lab, 0.3 + i * w, 1.4, w)
+                D.picture(s, q, 0.3 + i * w, 1.85, w - 0.1, 4.75)
+            D.note(s, "Isoform reads per million reads sequenced; the 4 most abundant isoforms of each method are shown, "
+                      "the rest summed as Other. The two methods name novel isoforms differently.", size=10)
         iso = read_tsv(path(deck_dir, "{}_isoforms.tsv".format(g)))
         q = path(deck_dir, "{}_isoform_fraction.png".format(g))
+        ok = [x for x in samples if iso and iso[0].get("{}_fraction".format(x), "NA") != "NA"]
+        ptc = [r for r in iso if r["category"] == "Premature termination codon"]
         if have(q) and iso:
-            ok = [x for x in samples if iso[0].get("{}_fraction".format(x), "NA") != "NA"]
             canon = [r for r in iso if r["category"] == "canonical"]
-            ptc = [r for r in iso if r["category"] == "Premature termination codon"]
             fr = [float(canon[0]["{}_fraction".format(x)]) * 100 for x in ok] if canon and ok else []
             s = D.slide("The canonical {} isoform accounts for {} of isoform reads".format(g, fmt_range(fr, 0, True))
                         if fr else "{} isoform usage in buccal swabs".format(g), size=28)
-            items = []
-            if ptc and ok:
-                items.append("Isoforms with a premature termination codon: {} of isoform reads".format(fmt_range(
-                    [sum(float(r["{}_fraction".format(x)]) for r in ptc) * 100 for x in ok], 0, True)))
-            items.append("Partial reads are assigned to the isoforms they are compatible with: read the proportions "
-                         "with care")
-            D.figure(s, q, items, note=crit + "; isoforms quantified by {}.".format(iso[0]["method"].replace("_", " ")))
+            D.figure(s, q, ["Partial reads are assigned to the isoforms they are compatible with: read the proportions "
+                            "with care"],
+                     note=crit + "; isoforms quantified by {}.".format(iso[0]["method"].replace("_", " ")))
+        q = path(deck_dir, "{}_isoform_category.png".format(g))
+        if have(q) and iso:
+            fr = [sum(float(r["{}_fraction".format(x)]) for r in ptc) * 100 for x in ok] if ptc and ok else []
+            s = D.slide("{} isoforms with a premature termination codon: {} of isoform reads".format(
+                g, fmt_range(fr, 0, True)) if fr else "{} isoforms grouped by open reading frame".format(g), size=28)
+            D.figure(s, q, note="ORF translated from the canonical start codon; premature termination codon = stop codon "
+                                "> 50 nt upstream of the last exon-exon junction (predicted NMD); incomplete ORF = no "
+                                "canonical start codon or no stop codon. " + crit + ".")
         drawn = read_tsv(path(deck_dir, "{}_events_drawn.tsv".format(g)))
         levels = defaultdict(dict)
         for r in read_tsv(path(deck_dir, "{}_splicing_events.tsv".format(g))):
@@ -1795,44 +1908,96 @@ def story(args):
             lv = [float(r["level_percent"]) for r in levels[d["event_id"]].values() if r["level_percent"] != "NA"]
             one = next(iter(levels[d["event_id"]].values()))
             is_ce = d["type"] == "Cassette exon"
-            what = "{} {}{}".format(g, "" if one["in_gencode"] == "True" else "novel ",
-                                    "cassette exon" if is_ce else d["type"].lower())
-            s = D.slide("{}: {} {} in {} swab(s) with >= 20 reads".format(
-                what, "inclusion" if is_ce else "usage", fmt_range(lv, 0, True), len(lv)) if lv else what, size=28)
-            D.figure(s, q, note="{}:{:,}-{:,}. {} = {} reads / {} reads (minimum of 20 reads in the denominator); {} "
-                                "splicing event(s) with >= 20 reads in {} in total.".format(
-                                    one["chrom"], int(one["start"]), int(one["end"]),
-                                    "Exon inclusion" if is_ce else "Splice-site usage",
-                                    "inclusion junction" if is_ce else "alternative junction",
-                                    "inclusion or skipping junction" if is_ce else "alternative or canonical junction",
-                                    len(drawn), g))
+            novel = one["in_gencode"] != "True"
+            dn = d.get("delta_nt", "")
+            if is_ce:
+                what = "A {}{}{} exon".format("novel " if novel else "", "{} nt ".format(dn) if dn else "", g)
+            else:
+                what = "{} {} {}".format("A novel" if novel else "An annotated", g, d["type"].lower())
+            frame, orf = d.get("frame", ""), d.get("orf_effect", "")
+            eff = []
+            if frame.startswith("frameshift"):
+                eff.append("shifts the reading frame")
+            elif frame.startswith("in frame"):
+                eff.append("keeps the reading frame ({})".format(frame.replace("in frame ", "").strip("()")))
+            elif frame == "UTR":
+                eff.append("lies outside the coding sequence")
+            if orf.startswith("premature stop"):
+                eff.append("adds a premature stop codon (predicted NMD)")
+            title = "{} is {} in {} of reads".format(what, "included" if is_ce else "used", fmt_range(lv, 0, True)) \
+                if lv else what
+            if eff:
+                title += "; it " + " and ".join(eff)
+            s = D.slide(title, size=24)
+            D.figure(s, q, [
+                "How it was chosen: from the data, not from the literature or for NMD; it is the alternative splicing "
+                "event of {} with the most reads over all swabs ({} of {} reads; {} event(s) with >= 20 reads)".format(
+                    g, d.get("pooled_alt_reads", "?"), d.get("pooled_denominator", "?"), len(drawn)),
+                "{}{}:{:,}-{:,}; a novel exon is only called when >= 2 reads contain both of its junctions".format(
+                    "Not in GENCODE. " if novel else "In GENCODE. ", one["chrom"], int(one["start"]), int(one["end"]))],
+                size=13, note="{} = {} reads / {} reads (minimum of 20 reads in the denominator). Effect predicted on "
+                              "the canonical open reading frame.".format(
+                                  "Inclusion" if is_ce else "Usage",
+                                  "inclusion junction" if is_ce else "alternative junction",
+                                  "inclusion or skipping junction" if is_ce else "alternative or canonical junction"))
+
+    # ---- patient variants: background, overview, then each gene
     vf = args.variant_figures
     vt = defaultdict(dict)
     tf = args.testability_figures
     for r in read_tsv(path(tf, "variant_testability_summary.tsv")) if tf else []:
         vt[r["gene"]][r["specimen"]] = (float(r["percent_testable"]), int(r["variants"]))
-    if have(path(vf, "variant_coverage_summary.png")):
-        rows = read_tsv(path(vf, "variant_coverage.tsv"))
-        cols_ = [c for c in rows[0] if c.endswith("_reads") and not c.endswith("junction_reads")
-                 and c not in ("all_swabs_reads", "all_samples_reads")] if rows else []
-        parts = []
+    rows = read_tsv(path(vf, "variant_coverage.tsv")) if vf else []
+    cols_ = [c for c in rows[0] if c.endswith("_reads") and not c.endswith("junction_reads")
+             and c not in ("all_swabs_reads", "all_samples_reads")] if rows else []
+    best = lambda r: max(int(r[c]) for c in cols_)  # noqa: E731
+    if have(path(vf, "variant_types.png")) and rows:
+        ty = defaultdict(dict)
+        for r in read_tsv(path(vf, "variant_types.tsv")):
+            ty[(r["gene"], r["measure"])][r["key"]] = int(r["value"])
+        parts = ["{} {}".format(len([r for r in rows if r["gene"] == g]), g) for g in genes
+                 if any(r["gene"] == g for r in rows)]
+        s = D.slide("The patient variants: {} distinct variants from the lab's patient list".format(" and ".join(parts)),
+                    size=26)
+        items = ["Source: the lab's list of patients with a {} variant; one entry per patient record, so a recurrent "
+                 "variant is listed more than once".format(" or ".join(genes))]
         for g in genes:
-            vs = [r for r in rows if r["gene"] == g]
-            if vs:
-                n20 = sum(1 for r in vs if max(int(r[c]) for c in cols_) >= 20)
-                parts.append("{} {} of {}".format(g, n20, len(vs)))
-        s = D.slide("Patient variants covered by >= 20 reads in at least one swab: " + ", ".join(parts), size=26)
-        items = ["Distinct c. variants of {} from the lab's patient list, on the MANE Select transcripts; reference "
-                 "base confirmed for {} variants".format(glist(genes),
-                                                         sum(r["reference_check"] == "match" for r in rows))]
+            t = ty.get((g, "type"), {})
+            if t:
+                items.append("{}: ".format(g) + ", ".join("{} {}".format(v, k.lower()) for k, v in
+                                                          sorted(t.items(), key=lambda kv: -kv[1]) if v))
+        items.append("Copy-number changes and whole-exon deletions are left out: reads at a single base cannot test them")
+        D.figure(s, path(vf, "variant_types.png"), items, size=13)
+    if have(path(vf, "variant_coverage_summary.png")) and rows:
+        n20 = {g: sum(1 for r in rows if r["gene"] == g and best(r) >= 20) for g in genes}
+        nall = {g: sum(1 for r in rows if r["gene"] == g) for g in genes}
+        parts = ["{} of {} {}".format(n20[g], nall[g], g) for g in genes if nall[g]]
+        s = D.slide("{} patient variants reach 20 reads in at least one swab".format(" and ".join(parts)), size=26)
+        items = ["c. positions on the MANE Select transcripts; reference base confirmed for {} variants".format(
+            sum(r["reference_check"] == "match" for r in rows))]
         if vt:
-            items.append("In a typical swab (median of the 8): " + "; ".join(
+            items.append("In a typical swab (median of the {}): ".format(len(samples)) + "; ".join(
                 "{} {:.0f}% of variants with >= 20 reads".format(g, vt[g]["swab"][0]) for g in genes
                 if "swab" in vt.get(g, {})))
         D.figure(s, path(vf, "variant_coverage_summary.png"), items)
         if vt:
             summary["genes"].append("Patient variants readable (>= 20 reads) in a typical swab: " + "; ".join(
                 "{} {:.0f}%".format(g, vt[g]["swab"][0]) for g in genes if "swab" in vt.get(g, {})))
+    for g in genes:
+        q = path(vf, "variant_coverage_{}.png".format(g))
+        vs = [r for r in rows if r["gene"] == g]
+        if not have(q) or not vs:
+            continue
+        k20, k0 = sum(1 for r in vs if best(r) >= 20), sum(1 for r in vs if best(r) == 0)
+        if k20 == len(vs):
+            title = "All {} {} patient variants are covered by at least 20 reads in a swab".format(len(vs), g)
+        else:
+            title = "{} of the {} {} patient variants reach 20 reads in a swab".format(k20, len(vs), g)
+            title += "; {} have no reads".format(k0) if k0 else "; every variant has at least one read"
+        s = D.slide(title, size=26)
+        D.figure(s, q, note="Reads per variant and swab (gene reads); variants ordered 5' to 3' along the transcript; "
+                            "top: summed coverage of the {} swabs with the variant positions. Splice-site variants count "
+                            "reads with a base at the site and reads splicing across its intron.".format(len(samples)))
     er = args.extra_results
     if extra and er and os.path.isdir(er):
         efilt = read_tsv(os.path.join(er, "figures", "read_filter.tsv"))
@@ -1857,9 +2022,8 @@ def story(args):
         s = D.slide("Five more genes in swab RNA: {} detected in every swab".format(glist(det) if det else "none"),
                     size=28)
         D.table(s, rows, 0.4, 1.6, SW - 0.8, [1.6, 1.9, 2.4, 1.8, 2.5, 2.33], size=13)
-        D.bullets(s, ["Same analysis as {}, with gene reads from the full-path alignment and isoforms from AMALGAM; "
-                      "every figure for these genes is in the deck TEQUILA_Epilepsy_Swab_extra_genes.pptx".format(
-                          glist(genes)),
+        D.bullets(s, ["Same analysis as {}; every figure for these genes is in the deck "
+                      "TEQUILA_Epilepsy_Swab_extra_genes.pptx".format(glist(genes)),
                       "Ion-channel genes (SCN1A, KCNQ2, SCN2A) are brain-restricted (section 5): few or no reads expected"],
                   0.5, 5.2, SW - 1.0, 1.6, size=14)
         summary["genes"].append("Five more genes: {} detected in every swab".format(glist(det) if det else "none"))

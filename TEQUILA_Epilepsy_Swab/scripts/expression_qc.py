@@ -4,7 +4,10 @@
   panel_capture     (a) on-target rate: reads overlapping any probe-panel gene, % of all reads; (b) where the reads
                     go: panel genes, other genes, outside annotated genes, unmapped (each read counted once, by its
                     alignment midpoint)
-  pca               PCA of log2(CPM + 1), (a) all genes and (b) panel genes; genes with CPM >= 1 in >= 2 samples
+  pca               PCA of log2(CPM + 1), (a) all genes and (b) panel genes; genes with CPM >= 1 in >= 2 samples.
+                    PCA, correlation and kit comparison use spliced reads (gene_counts_spliced.tsv) when present:
+                    certainly mRNA, unlike the genomic-DNA-like background that all-read gene counts include. R^2 of
+                    PC1 and PC2 by kit and by donor is written to expression_qc.tsv (pca_r2).
   correlation       Pearson correlation between samples of log2(CPM + 1), all genes and panel genes
   kit_scatter       per donor, panel genes in Zymo against Genotek, log2(CPM + 1); target genes labelled
 CPM uses the reads assigned to genes (intergenic and unmapped reads left out). Tables: expression_qc.tsv.
@@ -12,6 +15,7 @@ CPM uses the reads assigned to genes (intergenic and unmapped reads left out). T
 import argparse
 import csv
 import os
+from collections import defaultdict
 
 import matplotlib
 matplotlib.use("Agg")
@@ -63,6 +67,11 @@ def main():
     kit_of = {r["sample_id"]: r["condition"] for r in sheet}
     donor_of = {r["sample_id"]: r["donor"] for r in sheet}
     tab = pd.read_csv(os.path.join(args.counts_dir, "gene_counts.tsv"), sep="\t", index_col=0)
+    n_panel = sum(1 for l in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "panel_genes.txt"))
+                  if l.strip() and not l.startswith("#"))
+    sp_path = os.path.join(args.counts_dir, "gene_counts_spliced.tsv")
+    stab = pd.read_csv(sp_path, sep="\t", index_col=0) if os.path.exists(sp_path) else None
+    reads_kind = "spliced reads" if stab is not None else "all reads"
     samples = [r["sample_id"] for r in sheet if r["sample_id"] in tab.columns]
     on = pd.read_csv(os.path.join(args.counts_dir, "panel_on_target.tsv"), sep="\t", index_col=0).loc[samples]
     rows = []
@@ -84,7 +93,7 @@ def main():
     axes[0].bar(x, rate, width=0.8, color=[KIT_COLORS[kits.index(kit_of[s]) % 2] for s in samples])
     for i, v in enumerate(rate):
         axes[0].text(i, v, "{:.1f}".format(v), ha="center", va="bottom", fontsize=8)
-    axes[0].set_ylabel("On-target rate (% of all reads\non {} panel genes)".format(int(in_panel.sum())))
+    axes[0].set_ylabel("On-target rate (% of all reads\non the {} panel genes)".format(n_panel))
     handles = [plt.Rectangle((0, 0), 1, 1, color=KIT_COLORS[i % 2]) for i in range(len(kits))]
     axes[0].legend(handles, kits, frameon=False, fontsize=9, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2)
     colors = {"Panel genes": "#3A8DC4", "Other genes": SLATE, "Outside annotated genes": "#BEBEBE",
@@ -109,13 +118,17 @@ def main():
         for part in comp_pct.index:
             rows.append(("reads_percent_" + part.replace(" ", "_"), s, "{:.3f}".format(comp_pct.loc[part, s])))
 
-    # ---- expression matrices
+    # ---- expression matrices (spliced reads when available)
+    if stab is not None:
+        genic = stab[samples]
+        in_panel = stab["in_panel"].astype(str) == "True"
     expr = genic.loc[:, samples]
     cpm = expr / expr.sum() * 1e6
     keep = (cpm >= 1).sum(axis=1) >= 2
     logc = np.log2(cpm[keep] + 1)
     panel_log = logc[in_panel.reindex(logc.index).fillna(False)]
     sets = [("All genes", logc), ("Panel genes", panel_log)]
+    rows.append(("reads_used", "all", reads_kind))
     rows.append(("genes_used", "all", str(len(logc))))
     rows.append(("genes_used", "panel", str(len(panel_log))))
 
@@ -132,9 +145,21 @@ def main():
                        edgecolor="black", linewidth=0.5, zorder=3)
             ax.annotate(donor_of[s], (pcs[i, 0], pcs[i, 1]), xytext=(6, 4), textcoords="offset points", fontsize=9)
             rows.append(("PC1_PC2_" + name.split()[0].lower(), s, "{:.3f},{:.3f}".format(pcs[i, 0], pcs[i, 1])))
+        for pc in (0, 1):
+            for what, lab in (("kit", kit_of), ("donor", donor_of)):
+                y = pcs[:, pc]
+                grp = defaultdict(list)
+                for i, s in enumerate(samples):
+                    grp[lab[s]].append(y[i])
+                ss_tot = ((y - y.mean()) ** 2).sum() or 1
+                r2 = sum(len(v) * (np.mean(v) - y.mean()) ** 2 for v in grp.values()) / ss_tot
+                rows.append(("pca_r2", "{}|PC{}|{}".format(name.split()[0].lower(), pc + 1, what),
+                             "{:.3f}".format(r2)))
+            rows.append(("pca_var", "{}|PC{}".format(name.split()[0].lower(), pc + 1), "{:.1f}".format(var[pc])))
         ax.set_xlabel("PC1 ({:.1f}%)".format(var[0]))
         ax.set_ylabel("PC2 ({:.1f}%)".format(var[1]))
-        ax.set_title("{}  {} ({:,} genes)".format(letter, name, len(m)), loc="left", fontweight="bold", fontsize=10)
+        ax.set_title("{}  {} ({:,} genes, {})".format(letter, name, len(m), reads_kind), loc="left",
+                     fontweight="bold", fontsize=10)
         classic(ax)
     axes[1].legend([plt.Line2D([], [], marker="o", linestyle="", markersize=8, markerfacecolor=KIT_COLORS[i % 2],
                                 markeredgecolor="black") for i in range(len(kits))], kits, frameon=False,
@@ -169,11 +194,17 @@ def main():
     pairs = [(d, by[(d, kits[0])], by[(d, kits[1])]) for d in donors
              if len(kits) == 2 and (d, kits[0]) in by and (d, kits[1]) in by]
     if pairs:
-        fig, axes = plt.subplots(1, len(pairs), figsize=(3.0 * len(pairs), 3.3), squeeze=False)
-        fig.subplots_adjust(left=0.07, right=0.99, top=0.88, bottom=0.17, wspace=0.35)
+        fig, axes = plt.subplots(1, len(pairs), figsize=(3.2 * len(pairs), 3.6), squeeze=False)
+        fig.subplots_adjust(left=0.07, right=0.99, top=0.84, bottom=0.17, wspace=0.38)
         hi = float(panel_log.values.max()) + 0.5
+        pcounts = expr[in_panel.reindex(expr.index).fillna(False)]
         for ax, (d, a, b) in zip(axes[0], pairs):
             xa, yb = panel_log[a], panel_log[b]
+            for smp in (a, b):
+                rows.append(("panel_genes_detected", smp, str(int((pcounts[smp] >= 5).sum()))))
+                for g in genes:
+                    if g in cpm.index:
+                        rows.append(("target_cpm", "{}|{}".format(g, smp), "{:.2f}".format(cpm.loc[g, smp])))
             ax.scatter(xa, yb, s=6, color=SLATE, alpha=0.6, linewidth=0)
             for g in genes:
                 if g in panel_log.index:
@@ -184,9 +215,11 @@ def main():
             r = np.corrcoef(xa, yb)[0, 1]
             ax.set_xlim(0, hi)
             ax.set_ylim(0, hi)
-            ax.set_title("Donor {}  r = {:.2f}".format(d, r), fontsize=10)
-            ax.set_xlabel("{}, log2(CPM + 1)".format(kits[0]))
-            ax.set_ylabel("{}, log2(CPM + 1)".format(kits[1]))
+            na, nb = int((pcounts[a] >= 5).sum()), int((pcounts[b] >= 5).sum())
+            ax.set_title("Donor {}  r = {:.2f}\ngenes >= 5 reads: {} {}, {} {}".format(d, r, kits[0], na, kits[1], nb),
+                         fontsize=9)
+            ax.set_xlabel("{}, log2(CPM + 1), {}".format(kits[0], reads_kind), fontsize=8)
+            ax.set_ylabel("{}, log2(CPM + 1)".format(kits[1]), fontsize=8)
             classic(ax)
             rows.append(("kit_pearson_panel", d, "{:.4f}".format(r)))
         save(fig, os.path.join(args.outdir, "kit_scatter"))

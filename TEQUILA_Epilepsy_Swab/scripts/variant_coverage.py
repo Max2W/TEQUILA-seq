@@ -16,7 +16,8 @@ The reference base of every substitution (and the deleted / duplicated bases whe
 genome, which catches a c. numbering on a different transcript.
 
 Outputs (--outdir): variant_coverage.tsv, variants_skipped.tsv, variant_coverage_<GENE>.{pdf,png} (coverage of all
-swabs with the variant positions, and reads per variant and swab), variant_coverage_summary.{pdf,png}.
+swabs with the variant positions, and reads per variant and swab), variant_coverage_summary.{pdf,png},
+variant_types.{pdf,png,tsv} (variant types per gene, pathogenicity, positions along the transcript).
 """
 import argparse
 import csv
@@ -324,6 +325,81 @@ def summary_figure(genes, variants, samples, kits_of, out):
     plt.close(fig)
 
 
+def types_figure(genes, variants, models, out):
+    """background for the variant slides: which kinds of patient variants, where along the transcript."""
+    genes = [g for g in genes if any(v["gene"] == g for v in variants)]
+    if not genes:
+        return
+    order = [k for k in CONSEQ_COLORS if any(v["consequence"] == k for v in variants)]
+    fig, axes = plt.subplots(len(genes), 2, figsize=(13.0, 2.3 * len(genes) + 1.0), squeeze=False,
+                             gridspec_kw={"width_ratios": [1, 2.6]})
+    fig.subplots_adjust(left=0.04, right=0.98, top=1 - 0.75 / (2.3 * len(genes) + 1.0),
+                        bottom=0.2 / len(genes) + 0.08, wspace=0.12,
+                        hspace=0.75)
+    rows = []
+    for (axb, axl), g in zip(axes, genes):
+        vs = [v for v in variants if v["gene"] == g]
+        n = Counter(v["consequence"] for v in vs)
+        left = 0
+        for k in order:
+            if n[k]:
+                axb.barh(0, n[k], left=left, color=CONSEQ_COLORS[k], height=0.6, edgecolor="white", lw=0.6)
+                if n[k] >= max(2, len(vs) * 0.06):
+                    axb.text(left + n[k] / 2, 0, str(n[k]), ha="center", va="center", fontsize=8, color="white",
+                             fontweight="bold")
+                left += n[k]
+            rows.append((g, "type", k, n[k]))
+        axb.set_xlim(0, len(vs))
+        axb.set_ylim(-0.6, 0.6)
+        axb.set_yticks([])
+        axb.set_xlabel("Distinct variants", fontsize=8)
+        entries = sum(v["n_listed"] for v in vs)
+        path = Counter(re.sub(r"\s+", " ", v["pathogenicity"].strip().lower()) or "not given" for v in vs)
+        axb.set_title("{}: {} distinct variants ({} entries in the list)\n{}".format(
+            g, len(vs), entries, "; ".join("{} {}".format(k, c) for k, c in path.most_common(4))), loc="left",
+            fontsize=9.5)
+        for k, c in path.items():
+            rows.append((g, "pathogenicity", k, c))
+        rows.append((g, "entries", "", entries))
+        for side in ("top", "right", "left"):
+            axb.spines[side].set_visible(False)
+        # positions along the canonical transcript, 5' to 3'
+        m = models[g]
+        cm = CdnaMap(m)
+        pos = {x: i for i, x in enumerate(cm.tx)}
+        L = len(cm.tx)
+        exons = m["exons"] if m["strand"] == "+" else m["exons"][::-1]
+        start = 0
+        for k, (a, b) in enumerate(exons):
+            ln = b - a + 1
+            axl.add_patch(Rectangle((start, -0.12), ln, 0.24, color="#D0D7DE" if k % 2 else "#AEB8C2", lw=0))
+            start += ln
+        axl.add_patch(Rectangle((cm.c1, -0.2), cm.cds_len, 0.4, fill=False, edgecolor="#333333", lw=0.8))
+        ymax = max(v["n_listed"] for v in vs)
+        for v in vs:
+            x = pos.get(v["anchor"][0], 0)
+            y = 0.35 + 0.65 * v["n_listed"] / ymax
+            axl.plot([x, x], [0.2, y], color="#999999", lw=0.6, zorder=1)
+            axl.scatter(x, y, s=22, color=CONSEQ_COLORS[v["consequence"]], edgecolor="black", lw=0.3, zorder=2)
+        axl.set_xlim(-L * 0.01, L * 1.01)
+        axl.set_ylim(-0.3, 1.1)
+        axl.set_yticks([])
+        axl.set_xlabel("Position along the canonical transcript (nt, 5' to 3'); exons alternate grey, box = coding "
+                       "sequence; stem height = times listed (max {})".format(ymax), fontsize=8)
+        for side in ("top", "right", "left"):
+            axl.spines[side].set_visible(False)
+    handles = [Rectangle((0, 0), 1, 1, color=CONSEQ_COLORS[k]) for k in order]
+    fig.legend(handles, order, loc="lower center", ncol=len(order), frameon=False, fontsize=8.5,
+               bbox_to_anchor=(0.5, 0.0))
+    fig.savefig(out + ".pdf")
+    fig.savefig(out + ".png", dpi=300)
+    plt.close(fig)
+    with open(out + ".tsv", "w") as fh:
+        fh.write("gene\tmeasure\tkey\tvalue\n")
+        for r in rows:
+            fh.write("\t".join(map(str, r)) + "\n")
+
+
 # ------------------------------------------------------------------------------------------------ main
 
 def main():
@@ -408,6 +484,7 @@ def main():
                     os.path.join(args.outdir, "variant_coverage_{}".format(g)))
     summary_figure([g for g in genes if g in models], variants, samples, kits_of,
                    os.path.join(args.outdir, "variant_coverage_summary"))
+    types_figure([g for g in genes if g in models], variants, models, os.path.join(args.outdir, "variant_types"))
     for g in genes:
         vs = [v for v in variants if v["gene"] == g]
         if vs:

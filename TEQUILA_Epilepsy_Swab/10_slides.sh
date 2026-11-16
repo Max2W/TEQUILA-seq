@@ -131,6 +131,7 @@ if [[ -s "${QC_DIR}/per_sample_qc.tsv" ]]; then
   echo "[slides] full-path read filter:"; (column -t "${FULL_FILTER}" 2>/dev/null || cat "${FULL_FILTER}")
   python "${ANALYSIS_DIR}/scripts/full_path_figures.py" --genes "${genes_csv}" --sample-sheet "${SAMPLE_SHEET}" \
     --qc-dir "${QC_DIR}" --fast-filter "${FIG}/read_filter.tsv" --full-filter "${FULL_FILTER}" \
+    --bam-pattern "${QC_DIR}/bam/{sample}.bam" \
     --outdir "${FIG}/full_path"
   full_args=(--full-figures "${FIG}/full_path")
   if (( MAIN )) && [[ -s "${FIG}/expression_qc/expression_qc.tsv" ]]; then
@@ -199,6 +200,12 @@ if (( MAIN )); then
       --sample-sheet "${SAMPLE_SHEET}" --genes "${genes_csv}" --outdir "${FIG}/cellmix"
     extra_args+=(--cellmix-figures "${FIG}/cellmix")
   fi
+fi
+# fragmentation in one figure: fraction of reads covering each position of the canonical transcript (any gene set)
+if [[ -s "${RESULTS_DIR}/fragmentation/filtered/gene_body_coverage.tsv" ]]; then
+  python "${ANALYSIS_DIR}/scripts/genebody_figure.py" --frag-dir "${RESULTS_DIR}/fragmentation/filtered" \
+    --sample-sheet "${SAMPLE_SHEET}" --genes "${genes_csv}" --outdir "${FIG}/genebody"
+  extra_args+=(--genebody-figures "${FIG}/genebody")
 fi
 # upper bound of genomic DNA among the gene reads (full-path BAMs; any gene set)
 if compgen -G "${QC_DIR}/bam/*.bam" >/dev/null; then

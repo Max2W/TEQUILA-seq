@@ -43,16 +43,23 @@ def main():
     p.add_argument("--outdir", required=True, help="public_data/")
     a = p.parse_args()
     panel = [l.strip() for l in open(a.panel) if l.strip() and not l.startswith("#")]
-    query = {OLD.get(g, g): g for g in panel}
+    # Query both the current and the old symbol (GENCODE v26 has some genes under each); the current one wins.
+    query = {g: g for g in panel}
+    for g in panel:
+        if g in OLD:
+            query.setdefault(OLD[g], g)
     ids = {}
     names = list(query)
     for i in range(0, len(names), 50):
         d = get("reference/gene", {"geneId": names[i:i + 50], "gencodeVersion": "v26",
                                    "genomeBuild": "GRCh38/hg38", "itemsPerPage": 500})
         for x in d["data"]:
-            if x["geneSymbol"] in query:
-                ids[query[x["geneSymbol"]]] = x["gencodeId"]
-    print("{} of {} panel genes found in GENCODE v26".format(len(ids), len(panel)))
+            sym = x["geneSymbol"]
+            if sym in query and (query[sym] not in ids or sym == query[sym]):
+                ids[query[sym]] = x["gencodeId"]
+    missing = [g for g in panel if g not in ids]
+    print("{} of {} panel genes found in GENCODE v26{}".format(
+        len(ids), len(panel), "; missing: " + ", ".join(missing) if missing else ""))
     rows = []
     genes = [g for g in panel if g in ids]
     for i in range(0, len(genes), 20):

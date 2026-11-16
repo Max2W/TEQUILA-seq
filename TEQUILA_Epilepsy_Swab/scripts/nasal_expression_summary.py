@@ -19,7 +19,9 @@ import pandas as pd
 URL = "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE152nnn/GSE152004/suppl/GSE152004_695_raw_counts.txt.gz"
 MARKERS = ["OMP", "FOXJ1", "CAPS", "SCGB1A1", "BPIFA1", "MUC5AC", "KRT5", "KRT13", "KRT4", "SPRR3", "PTPRC", "ACTB",
            "GAPDH"]
-ALIASES = {"SPATA5": "AFG2A"}
+# Panel genes under their current symbol, with the older symbol the cohort's gene table may use instead.
+OLD = {"AFG2A": "SPATA5", "AARS1": "AARS", "EPRS1": "EPRS", "QARS1": "QARS", "H1-4": "HIST1H1E", "H3-3A": "H3F3A",
+       "NEXMIF": "KIAA2022", "LINS1": "LINS", "PLPBP": "PROSC", "KMT5B": "SUV420H1", "NSD2": "WHSC1"}
 
 
 def parse_args():
@@ -41,7 +43,13 @@ def main():
     cpm = d.div(d.sum(axis=0), axis=1) * 1e6
     q = cpm.quantile([0.1, 0.25, 0.5, 0.75, 0.9], axis=1).T
     rank = q[0.5].rank(pct=True) * 100
-    panel = [ALIASES.get(l.strip(), l.strip()) for l in open(a.panel) if l.strip() and not l.startswith("#")]
+    panel = [l.strip() for l in open(a.panel) if l.strip() and not l.startswith("#")]
+    for g, old in OLD.items():
+        if g not in d.index and old in d.index:
+            d.loc[g] = d.loc[old]
+            cpm.loc[g] = cpm.loc[old]
+            q.loc[g] = q.loc[old]
+            rank[g] = rank[old]
     targets = a.genes.split(",")
     with open(a.out, "w") as fh:
         fh.write("# GEO GSE152004 (Sajuthi et al., Nat Commun 2020): nasal airway epithelial brushings, n = {} samples, "
