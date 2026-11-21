@@ -1604,7 +1604,8 @@ def story(args):
             items.append("Read length per swab: interquartile range {} to {} nt; 95% of reads shorter than {} nt"
                          .format(fmt_range([q[1] for q in lq.values()]), fmt_range([q[3] for q in lq.values()]),
                                  fmt_range([q[4] for q in lq.values()])))
-        D.figure(s, seq_fig, items)
+        D.figure(s, seq_fig, items, note="TEQUILA-seq: Wang F, et al. Nat Commun. 2023;14:4760. "
+                                         "doi:10.1038/s41467-023-40083-6")
     exf = args.expression_figures
     exv = defaultdict(dict)
     for r in read_tsv(path(exf, "expression_qc.tsv")) if exf else []:
@@ -1876,7 +1877,8 @@ def story(args):
                 D.caption(s, lab, 0.3 + i * w, 1.4, w)
                 D.picture(s, q, 0.3 + i * w, 1.85, w - 0.1, 4.75)
             D.note(s, "Isoform reads per million reads sequenced; the 4 most abundant isoforms of each method are shown, "
-                      "the rest summed as Other. The two methods name novel isoforms differently.", size=10)
+                      "the rest summed as Other. The two methods name novel isoforms differently. ESPRESSO: Gao Y, "
+                      "et al. Sci Adv. 2023;9:eabq5072.", size=10)
         iso = read_tsv(path(deck_dir, "{}_isoforms.tsv".format(g)))
         q = path(deck_dir, "{}_isoform_fraction.png".format(g))
         ok = [x for x in samples if iso and iso[0].get("{}_fraction".format(x), "NA") != "NA"]
@@ -1929,14 +1931,23 @@ def story(args):
             if eff:
                 title += "; it " + " and ".join(eff)
             s = D.slide(title, size=24)
-            D.figure(s, q, [
-                "How it was chosen: from the data, not from the literature or for NMD; it is the alternative splicing "
-                "event of {} with the most reads over all swabs ({} of {} reads; {} event(s) with >= 20 reads)".format(
+            annot = d.get("annotation") or "GENCODE"
+            cls = d.get("event_class", "")
+            rm = d.get("events_removed_by_junction_check", "")
+            items = [
+                "Chosen from the data, not from the literature or for NMD: the alternative event of {} with the most "
+                "reads over all swabs ({} of {}; {} event(s) with >= 20 reads)".format(
                     g, d.get("pooled_alt_reads", "?"), d.get("pooled_denominator", "?"), len(drawn)),
-                "{}{}:{:,}-{:,}; a novel exon is only called when >= 2 reads contain both of its junctions".format(
-                    "Not in GENCODE. " if novel else "In GENCODE. ", one["chrom"], int(one["start"]), int(one["end"]))],
-                size=13, note="{} = {} reads / {} reads (minimum of 20 reads in the denominator). Effect predicted on "
-                              "the canonical open reading frame.".format(
+                "{} event, {} ({}:{:,}-{:,}){}; junctions pass the splice-motif and wobble check{}".format(
+                    cls or d["type"], "not in " + annot if novel else "in " + annot, one["chrom"], int(one["start"]),
+                    int(one["end"]), "; both junctions in the same >= 2 reads" if is_ce and novel else "",
+                    " ({} other event(s) failed it)".format(rm) if rm not in ("", "0") else "")]
+            D.figure(s, q, items,
+                size=13, note="SE = skipped exon, A5SS / A3SS = alternative 5' / 3' splice site (rMATS names). {} = {} "
+                              "reads / {} reads (>= 20 reads); error bars: Wilson 95% CI. Junction check: unannotated "
+                              "junctions need a GT-AG, GC-AG or AT-AC motif and must not lie within 20 nt of a junction "
+                              "with twice the reads. Isoforms drawn 5' to 3'. Effect predicted on the canonical ORF; NMD "
+                              "not tested.".format(
                                   "Inclusion" if is_ce else "Usage",
                                   "inclusion junction" if is_ce else "alternative junction",
                                   "inclusion or skipping junction" if is_ce else "alternative or canonical junction"))

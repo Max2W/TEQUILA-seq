@@ -30,6 +30,7 @@ Every number drawn is written to a table (<GENE>_isoform_fraction.tsv, <GENE>_is
 import argparse
 import csv
 import os
+import re
 import sys
 import types
 from collections import Counter, defaultdict
@@ -193,10 +194,16 @@ def orf(fasta, chrom, exons, strand, start_codon):
 
 # ------------------------------------------------------------------------------------------- isoform figures
 
-def draw_structures(ax, rows, shrink, label_side, fontsize):
-    """rows: (label, exons, cds, color). label_side 'above' (labels over each transcript) or 'left'."""
+def orient(ax, strand):
+    """transcript 5' end on the left: genomic coordinates run right to left for a minus-strand gene."""
+    ax.set_xlim((1.01, -0.01) if strand == "-" else (-0.01, 1.01))
+
+
+def draw_structures(ax, rows, shrink, label_side, fontsize, strand="+"):
+    """rows: (label, exons, cds, color). label_side 'above' (labels over each transcript) or 'left'.
+    Drawn 5' to 3' (minus-strand genes mirrored)."""
     n = len(rows)
-    ax.set_xlim(-0.01, 1.01)
+    orient(ax, strand)
     ax.set_ylim(n - 0.4, -0.7)
     ax.axis("off")
     h = 0.32 if label_side == "above" else 0.5
@@ -211,7 +218,8 @@ def draw_structures(ax, rows, shrink, label_side, fontsize):
                 ax.add_patch(Rectangle((x0, r - h / 2), max(x1 - x0, 0.0015), h, linewidth=0.5,
                                        facecolor=color if in_cds else "white", edgecolor="black", zorder=2))
         if label_side == "above":
-            ax.text(0.0, r - h / 2 - 0.06, name, fontsize=fontsize, ha="left", va="bottom")
+            ax.text(0.0, r - h / 2 - 0.06, name, fontsize=fontsize, ha="left", va="bottom",
+                    transform=ax.get_yaxis_transform())
         else:
             ax.annotate(name, xy=(0, r), xycoords=("axes fraction", "data"), xytext=(-6, 0),
                         textcoords="offset points", ha="right", va="center", fontsize=fontsize,
@@ -323,7 +331,9 @@ def isoform_figures(args, gene, spec, sheet, total, canon, fasta, out):
     shrink = IntronShrink([e for _, ex, _, _ in srows for e in ex], intron_fraction=0.5)
     rh = min(0.55, 4.9 / max(len(srows), 1))
     ax = fig.add_axes([6.6 / W, (H - 0.15 - rh * len(srows)) / H, 5.5 / W, rh * len(srows) / H])
-    draw_structures(ax, srows, shrink, "above", 8)
+    draw_structures(ax, srows, shrink, "above", 8, canon["strand"])
+    fig.text(6.6 / W, 0.25 / H, "Isoform structures drawn 5' to 3' ({} strand); introns shortened; filled: coding "
+                                "sequence".format(canon["strand"]), fontsize=7.5, color="#555555")
     save(fig, os.path.join(out, "{}_isoform_fraction".format(gene)))
 
     with open(os.path.join(out, "{}_isoform_fraction.tsv".format(gene)), "w") as fh:
@@ -352,7 +362,9 @@ def isoform_figures(args, gene, spec, sheet, total, canon, fasta, out):
         shrink = IntronShrink([e for _, ex, _, _ in srows for e in ex], intron_fraction=0.5)
         rh = min(0.3, 5.0 / len(srows))
         ax = fig.add_axes([8.2 / W, (H - 0.2 - rh * len(srows)) / H, 3.9 / W, rh * len(srows) / H])
-        draw_structures(ax, srows, shrink, "left", 7)
+        draw_structures(ax, srows, shrink, "left", 7, canon["strand"])
+        fig.text(8.2 / W, 0.25 / H, "Structures 5' to 3' ({} strand); introns shortened".format(canon["strand"]),
+                 fontsize=7.5, color="#555555")
     save(fig, os.path.join(out, "{}_isoform_category".format(gene)))
     return {"method": method, "n_isoforms": len(counts), "shown": shown, "canonical": canon_iso,
             "samples_ok": oks, "categories": {c: [t for t in counts.index if info[t][0] == c] for c in cats}}
@@ -365,14 +377,14 @@ def gene_model_figure(gene, canon, out):
     fig = plt.figure(figsize=(W, H))
     ax = fig.add_axes([0.03, 0.35, 0.94, 0.4])
     shrink = IntronShrink(canon["exons"], intron_fraction=0.4)
-    draw_structures(ax, [("", canon["exons"], canon["cds"], "#3A8DC4")], shrink, "above", 8)
+    draw_structures(ax, [("", canon["exons"], canon["cds"], "#3A8DC4")], shrink, "above", 8, canon["strand"])
     ax.set_ylim(0.5, -0.5)
     tx_len = sum(e - s + 1 for s, e in canon["exons"])
     aa = sum(e - s + 1 for s, e in canon["cds"]) // 3 - 1
     fig.text(0.03, 0.88, "{} {} ({}), {}:{:,}-{:,} ({} strand)".format(
         gene, canon["tx_id"], "MANE Select", canon["chrom"], canon["exons"][0][0], canon["exons"][-1][1],
         canon["strand"]), fontsize=8, style="normal")
-    fig.text(0.03, 0.08, "{} exons, {:,} nt transcript, {:,} aa protein; introns shortened".format(
+    fig.text(0.03, 0.08, "{} exons, {:,} nt transcript, {:,} aa protein; drawn 5' to 3', introns shortened".format(
         len(canon["exons"]), tx_len, aa), fontsize=8, color="#444444")
     save(fig, os.path.join(out, "{}_gene_model".format(gene)))
     return {"n_exons": len(canon["exons"]), "tx_len": tx_len, "aa": aa}
@@ -435,6 +447,61 @@ def find_events(canon, ann_exons, gencode_exons, ann_introns, pooled, reads=()):
                            "down": down, "alt": (a, b), "inc": [(a, b)], "skip": [(s, e)],
                            "annotated": (a, b) in ann_introns, "site": site})
     return events
+
+
+CANONICAL_MOTIFS = {("GT", "AG"), ("GC", "AG"), ("AT", "AC")}
+WOBBLE_NT = 20
+EVENT_CLASS = {"Cassette exon": "SE", "Alternative 5' splice site": "A5SS", "Alternative 3' splice site": "A3SS"}
+
+
+def motif(fasta, chrom, intron, strand):
+    """donor and acceptor dinucleotides of an intron (1-based closed), on the transcript strand."""
+    a, b = intron
+    d, c = fasta.fetch(chrom, a - 1, a + 1).upper(), fasta.fetch(chrom, b - 2, b).upper()
+    if strand == "-":
+        d, c = c.translate(COMP)[::-1], d.translate(COMP)[::-1]
+    return d, c
+
+
+def junction_qc(ev, fasta, chrom, strand, ann_introns, pooled):
+    """'pass', or why an unannotated junction of the event is not trusted: a non-canonical splice motif, or a shift of
+    a few nt from a junction with at least twice the reads (alignment or basecalling wobble)."""
+    for j in list(ev["inc"]) + list(ev["skip"]):
+        if j in ann_introns:
+            continue
+        d, c = motif(fasta, chrom, j, strand)
+        if (d, c) not in CANONICAL_MOTIFS:
+            return "non-canonical motif {}-{} at {}-{}".format(d, c, *j)
+        n = pooled.get(j, 0)
+        for j2, n2 in pooled.items():
+            if j2 != j and abs(j2[0] - j[0]) <= WOBBLE_NT and abs(j2[1] - j[1]) <= WOBBLE_NT and n2 >= 2 * n:
+                return "wobble: {}-{} ({} reads) within {} nt of {}-{} ({} reads)".format(
+                    j[0], j[1], n, WOBBLE_NT, j2[0], j2[1], n2)
+    return "pass"
+
+
+def wilson(k, n, z=1.96):
+    """95% Wilson score interval of a proportion, in %."""
+    if n == 0:
+        return float("nan"), float("nan")
+    p = k / n
+    den = 1 + z * z / n
+    mid = (p + z * z / (2 * n)) / den
+    half = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return max(0.0, mid - half) * 100, min(1.0, mid + half) * 100
+
+
+def annotation_version(gtf):
+    """'GENCODE v47' from the GTF header, else the file name."""
+    with open(gtf) as fh:
+        for line in fh:
+            if not line.startswith("#"):
+                break
+            m = re.search(r"version (\d+)", line)
+            if m and "description" in line.lower():
+                return "GENCODE v{}".format(m.group(1))
+    m = re.search(r"gencode\.v(\d+)", os.path.basename(gtf), re.I)
+    return "GENCODE v{}".format(m.group(1)) if m else os.path.basename(gtf)
 
 
 def event_exons(ev, canon_exons):
@@ -544,7 +611,7 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
             ax.add_patch(PathPatch(path, facecolor="none", edgecolor=color, linewidth=0.6 + 2.4 * n / nmax))
             ax.text((x1 + x2) / 2, peak * 0.76 if above else peak * 0.78, str(n), ha="center", va="center",
                     fontsize=7, bbox=dict(boxstyle="round,pad=0.15", facecolor="white", edgecolor="none"))
-        ax.set_xlim(-0.01, 1.01)
+        orient(ax, strand)
         ax.set_ylim(-ymax * 0.45, ymax * 1.3)
         ticks = [t for t in MaxNLocator(nbins=3, steps=[1, 2, 2.5, 5, 10]).tick_values(0, ymax) if 0 <= t <= ymax]
         ax.set_yticks(ticks if len(ticks) > 1 else [0, ymax])
@@ -555,7 +622,7 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
         ax.text(1.0, 1.0, label(s), transform=ax.transAxes, ha="right", va="top", fontsize=9)
     # zoomed model: canonical exons in black, the event's exon (or exon extension) in red, red arrow at the event
     axm = fig.add_axes([0.85 / W, 0.95 / H, 4.6 / W, 0.75 / H])
-    axm.set_xlim(-0.01, 1.01)
+    orient(axm, strand)
     axm.set_ylim(-1, 1)
     axm.axis("off")
     axm.plot([shrink(up[0]), shrink(down[1] + 1)], [0.45, 0.45], color="black", linewidth=0.8)
@@ -570,7 +637,7 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
     # overview: the whole canonical transcript with the event, introns shortened; dashed box = the zoomed region
     full = IntronShrink(list(canon_exons) + alt_seg, intron_fraction=0.5)
     axo = fig.add_axes([0.85 / W, 0.3 / H, 4.6 / W, 0.3 / H])
-    axo.set_xlim(-0.01, 1.01)
+    orient(axo, strand)
     axo.set_ylim(-1, 1)
     axo.axis("off")
     axo.plot([full(canon_exons[0][0]), full(canon_exons[-1][1] + 1)], [0, 0], color="black", linewidth=0.6)
@@ -584,20 +651,24 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
     for xo, xm in ((z0 - 0.004, -0.01), (z1 + 0.004, 1.01)):
         fig.add_artist(ConnectionPatch((xo, 0.85), (xm, -1.0), "data", "data", axesA=axo, axesB=axm,
                                        color="#C00000", linewidth=0.6, linestyle="--"))
-    axo.text(0, -1.25, "{} canonical transcript with the event in red (introns shortened)".format(gene),
-             fontsize=7, color="#444444", transform=axo.transData, va="top")
+    axo.text(0, -0.4, "{} canonical transcript with the event in red; 5' to 3' ({} strand), introns "
+                      "shortened".format(gene, strand), fontsize=7, color="#444444", transform=axo.transAxes,
+             va="top")
     # right, top: the two isoform structures (whole transcript, introns shortened)
     is_ce = ev["type"] == "Cassette exon"
     alt_exons = event_exons(ev, canon_exons)
     rows = [("Canonical (MANE)", list(canon_exons), (canon or {}).get("cds", []), "#708090"),
-            ("With the {}".format("exon" if is_ce else "alternative site"), alt_exons,
+            ("With the {} ({})".format("exon" if is_ce else "alternative site", EVENT_CLASS.get(ev["type"], "")),
+             alt_exons,
              (effect or {}).get("cds", []), "#C00000")]
     axs = fig.add_axes([7.0 / W, 4.05 / H, 5.0 / W, 1.0 / H])
-    draw_structures(axs, rows, full, "above", 8)
-    axs.annotate("", xy=(1.0 if strand == "+" else 0.0, 1.65), xytext=(0.0 if strand == "+" else 1.0, 1.65),
-                 arrowprops=dict(arrowstyle="-|>", color="#555555", lw=0.8), annotation_clip=False)
-    axs.text(0.5, 1.95, "transcription 5' to 3' ({} strand; genomic coordinates left to right)".format(strand),
-             ha="center", va="center", fontsize=7, color="#555555")
+    draw_structures(axs, rows, full, "above", 8, strand)
+    axs.annotate("", xy=(1.0, 1.65), xytext=(0.0, 1.65), xycoords=("axes fraction", "data"),
+                 textcoords=("axes fraction", "data"), arrowprops=dict(arrowstyle="-|>", color="#555555", lw=0.8),
+                 annotation_clip=False)
+    axs.text(0.5, 1.95, "5' to 3' along the transcript ({} strand{})".format(
+        strand, "; genomic coordinates decrease left to right" if strand == "-" else ""),
+        ha="center", va="center", fontsize=7, color="#555555", transform=axs.get_yaxis_transform())
     xr = float(full(ev["site"]))
     axs.plot([xr, xr], [-0.55, 1.45], color="#C00000", lw=0.6, ls=":")
     if effect:
@@ -615,6 +686,8 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
             pa = a_ / n * 100
             ax.bar(i, pa, width=0.8, color="#C00000")
             ax.bar(i, 100 - pa, bottom=pa, width=0.8, color="#B0BEC5")
+            lo_, hi_ = wilson(a_, n)
+            ax.errorbar(i, pa, yerr=[[pa - lo_], [hi_ - pa]], color="black", lw=0.8, capsize=2.5, capthick=0.8)
             ax.text(i, 101, "n = {}".format(n), ha="center", va="bottom", fontsize=6.5, color="#555555")
         else:
             ax.bar(i, 100, width=0.8, color="#F0F0F0")
@@ -628,6 +701,8 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
     ax.legend([Rectangle((0, 0), 1, 1, color="#C00000"), Rectangle((0, 0), 1, 1, color="#B0BEC5")],
               ["exon included" if is_ce else "alternative site", "exon skipped" if is_ce else "canonical site"],
               frameon=False, fontsize=8, loc="lower center", bbox_to_anchor=(0.5, 1.07), ncol=2)
+    fig.text(12.0 / W, 0.12 / H, "n = reads with an inclusion or a skipping junction; error bars: Wilson 95% CI",
+             ha="right", va="bottom", fontsize=7, color="#555555")
     psi = {smp: (levels[smp][0] / sum(levels[smp]) * 100 if sum(levels[smp]) >= MIN_DENOM else None)
            for smp in samples_all}
     save(fig, out_path)
@@ -659,6 +734,7 @@ def main():
             sys.exit("--isoforms takes GENE:METHOD:matrix:isoform_gtf, got {}".format(item))
         specs.setdefault(g, (method, matrix, gtf))
     conds = ordered(r["condition"] for r in sheet)
+    annot = annotation_version(args.gtf)
 
     for gene in args.genes.split(","):
         canon = canonical_model(args.gtf, gene)
@@ -690,27 +766,35 @@ def main():
         pooled = sum(junc_by_sample.values(), Counter())
         all_reads = [js for v in reads_by_sample.values() for js in v]
         events = find_events(canon, ann_exons, gencode_exons, ann_introns, pooled, all_reads)
-        rows, ranked = [], []
+        rows, ranked, removed = [], [], 0
         for ev in events:
             lv = event_levels(ev, reads_by_sample)
             alt_pool = sum(v[0] for v in lv.values())
             den_pool = sum(sum(v) for v in lv.values())
             ev["id"] = event_id(gene, ev, chrom)
+            qc = junction_qc(ev, fasta, chrom, strand, ann_introns, pooled)
             for s in samples_all:
                 i, k = lv[s]
-                rows.append([gene, ev["id"], ev["type"], chrom, ev["alt"][0], ev["alt"][1], ev["annotated"], s,
-                             i, k, i + k, "{:.2f}".format(i / (i + k) * 100) if i + k >= MIN_DENOM else "NA"])
+                cl, ch = wilson(i, i + k)
+                ok_n = i + k >= MIN_DENOM
+                rows.append([gene, ev["id"], ev["type"], EVENT_CLASS.get(ev["type"], ""), chrom, ev["alt"][0],
+                             ev["alt"][1], ev["annotated"], s, i, k, i + k,
+                             "{:.2f}".format(i / (i + k) * 100) if ok_n else "NA",
+                             "{:.2f}".format(cl) if ok_n else "NA", "{:.2f}".format(ch) if ok_n else "NA", qc])
             if den_pool >= MIN_DENOM and alt_pool >= MIN_READS:
-                ranked.append((alt_pool, den_pool, ev, lv))
+                if qc == "pass":
+                    ranked.append((alt_pool, den_pool, ev, lv))
+                else:
+                    removed += 1
         ranked.sort(key=lambda r: (-r[0], -r[1]))
         with open(os.path.join(args.outdir, "{}_splicing_events.tsv".format(gene)), "w") as fh:
-            fh.write("gene\tevent_id\ttype\tchrom\tstart\tend\tin_gencode\tsample_id\talt_reads\tcanonical_reads\t"
-                     "denominator\tlevel_percent\n")
+            fh.write("gene\tevent_id\ttype\tevent_class\tchrom\tstart\tend\tin_gencode\tsample_id\talt_reads\t"
+                     "canonical_reads\tdenominator\tlevel_percent\tci95_low\tci95_high\tjunction_qc\n")
             for r in rows:
                 fh.write("\t".join(map(str, r)) + "\n")
         with open(os.path.join(args.outdir, "{}_events_drawn.tsv".format(gene)), "w") as fh:
-            fh.write("rank\tevent_id\ttype\tin_gencode\tpooled_alt_reads\tpooled_denominator\tfigure\tdelta_nt\t"
-                     "frame\torf_effect\n")
+            fh.write("rank\tevent_id\ttype\tevent_class\tin_gencode\tpooled_alt_reads\tpooled_denominator\tfigure\t"
+                     "delta_nt\tframe\torf_effect\tannotation\tevents_removed_by_junction_check\n")
             for k, (alt_pool, den_pool, ev, lv) in enumerate(ranked[:args.max_events], 1):
                 for s in samples_all:
                     if s not in cov_by_sample:
@@ -721,11 +805,12 @@ def main():
                 eff = event_effect(ev, canon, fasta)
                 sashimi_and_bar(gene, ev, lv, sheet, cov_by_sample, junc_by_sample, chrom, strand,
                                 os.path.join(args.outdir, name), KIT_SASHIMI, canon["exons"], canon, eff)
-                fh.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
-                    k, ev["id"], ev["type"], ev["annotated"], alt_pool, den_pool, name, eff["delta_nt"],
-                    eff["frame"], eff["orf"]))
-        print("{}: {} splicing events found, {} with >= {} pooled reads, {} drawn".format(
-            gene, len(events), len(ranked), MIN_DENOM, min(len(ranked), args.max_events)))
+                fh.write("\t".join(map(str, [
+                    k, ev["id"], ev["type"], EVENT_CLASS.get(ev["type"], ""), ev["annotated"], alt_pool, den_pool,
+                    name, eff["delta_nt"], eff["frame"], eff["orf"], annot, removed])) + "\n")
+        print("{}: {} splicing events found, {} with >= {} pooled reads pass the junction check ({} removed: "
+              "non-canonical motif or wobble), {} drawn".format(gene, len(events), len(ranked), MIN_DENOM, removed,
+                                                                min(len(ranked), args.max_events)))
 
 
 if __name__ == "__main__":

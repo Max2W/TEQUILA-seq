@@ -177,8 +177,15 @@ LOCAL=1 bash 09_gene_figures.sh
   - protein coding;
   - premature termination codon (stop codon more than 50 nt before the last exon-exon junction);
   - incomplete ORF;
-- **splicing events**: sashimi plots and inclusion (or splice-site usage) levels per sample. Events are cassette
-  exons and alternative 3'/5' splice sites, found from the gene-filtered reads.
+- **splicing events**: sashimi plots and inclusion (or splice-site usage) levels per sample, with Wilson 95%
+  confidence intervals. Events are skipped (cassette) exons (SE) and alternative 5'/3' splice sites (A5SS/A3SS),
+  found from the gene-filtered reads. Every unannotated junction of an event must:
+  - have a canonical GT-AG, GC-AG or AT-AC motif on the transcript strand;
+  - not lie within 20 nt of a junction with at least twice the reads (alignment or basecalling wobble).
+
+  Events that fail are kept in `<GENE>_splicing_events.tsv` (column `junction_qc`) but are not drawn. A novel
+  exon also needs at least 2 reads holding both of its junctions. Isoform structures and event figures are drawn
+  5' to 3' along the transcript (minus-strand genes mirrored). The GENCODE version is read from the GTF header.
 
 As in the progress decks:
 - isoforms are shown individually when, in at least one sample, they reach a fraction of 5% or more of at least
