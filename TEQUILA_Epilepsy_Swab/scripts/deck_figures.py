@@ -488,7 +488,8 @@ def wilson(k, n, z=1.96):
     den = 1 + z * z / n
     mid = (p + z * z / (2 * n)) / den
     half = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
-    return max(0.0, mid - half) * 100, min(1.0, mid + half) * 100
+    # the bounds always contain p (rounding can push them past p by ~1e-16 when p is 0 or 1)
+    return min(p, max(0.0, mid - half)) * 100, max(p, min(1.0, mid + half)) * 100
 
 
 def annotation_version(gtf):
@@ -687,7 +688,8 @@ def sashimi_and_bar(gene, ev, levels, sheet, cov_by_sample, junc_by_sample, chro
             ax.bar(i, pa, width=0.8, color="#C00000")
             ax.bar(i, 100 - pa, bottom=pa, width=0.8, color="#B0BEC5")
             lo_, hi_ = wilson(a_, n)
-            ax.errorbar(i, pa, yerr=[[pa - lo_], [hi_ - pa]], color="black", lw=0.8, capsize=2.5, capthick=0.8)
+            ax.errorbar(i, pa, yerr=[[max(0.0, pa - lo_)], [max(0.0, hi_ - pa)]], color="black", lw=0.8,
+                        capsize=2.5, capthick=0.8)
             ax.text(i, 101, "n = {}".format(n), ha="center", va="bottom", fontsize=6.5, color="#555555")
         else:
             ax.bar(i, 100, width=0.8, color="#F0F0F0")
